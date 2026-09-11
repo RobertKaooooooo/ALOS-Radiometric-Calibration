@@ -1,0 +1,7 @@
+data/
+output/
+*.bin
+*.mlc
+*.trans
+__pycache__/
+*.pyc
