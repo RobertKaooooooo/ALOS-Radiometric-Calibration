@@ -97,10 +97,12 @@ def compute_nE_horn(Z, dlon_m, dlat_m, heading_rad):
     q = (Z1 + Z2 + Z3 - Z7 - Z8 - Z9) / (6.0 * dlat_m)
 
     slope = np.arctan(np.sqrt(p**2 + q**2))
+    # Matches uavsar_calib.cpp exactly: atan(q/p), NOT arctan2 (arctan2 adds
+    # +/-pi when p<0, flipping the aspect of every west-rising facet).
     if p == 0:
-        aspect = np.pi / 2 if q > 0 else -np.pi / 2
+        aspect = np.pi if q > 0 else 0.0
     else:
-        aspect = np.pi - np.arctan2(q, p) + (np.pi / 2) * np.sign(p)
+        aspect = np.pi - np.arctan(q / p) + (np.pi / 2) * np.sign(p)
 
     slope_r = np.tan(slope) * np.cos(aspect - heading_rad - np.pi / 2)
     slope_a = np.tan(slope) * np.cos(aspect - heading_rad)

@@ -72,8 +72,10 @@ def compute_facet_area_and_theta_l(dem, rows, cols, heading_rad,
     p = (Z3 + Z6 + Z9 - Z1 - Z4 - Z7) / (6.0 * dlon_m)
     q = (Z1 + Z2 + Z3 - Z7 - Z8 - Z9) / (6.0 * dlat_m)
     slope = np.arctan(np.sqrt(p ** 2 + q ** 2))
-    aspect = np.where(p == 0, np.where(q > 0, np.pi / 2, -np.pi / 2),
-                       np.pi - np.arctan2(q, p) + (np.pi / 2) * np.sign(p))
+    # Matches uavsar_calib.cpp exactly: atan(q/p), NOT arctan2.
+    p_safe = np.where(p == 0, 1.0, p)
+    aspect = np.where(p == 0, np.where(q > 0, np.pi, 0.0),
+                       np.pi - np.arctan(q / p_safe) + (np.pi / 2) * np.sign(p_safe))
     slope_r = np.tan(slope) * np.cos(aspect - heading_rad - np.pi / 2)
     slope_a = np.tan(slope) * np.cos(aspect - heading_rad)
     tempv = -1.0 / np.sqrt(1.0 + slope_r ** 2 + slope_a ** 2)
