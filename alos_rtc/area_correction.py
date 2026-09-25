@@ -31,7 +31,8 @@ DEG_M = 111320.0  # meters per degree of latitude (approx, WGS84)
 
 def compute_facet_area_and_theta_l(dem, rows, cols, heading_rad,
                                     pixels_per_deg, lat_top,
-                                    theta_ih, pitch_rad, yaw_rad, esa_rad=0.0):
+                                    theta_ih, pitch_rad, yaw_rad, esa_rad=0.0,
+                                    area_ref_m2=None):
     """
     Vectorized computation of local incidence angle and terrain-facet
     area for a set of DEM grid points (rows, cols), following the
@@ -100,7 +101,8 @@ def compute_facet_area_and_theta_l(dem, rows, cols, heading_rad,
     nIy = -l_h
     nIz = -l_c
     denom = np.abs(nEy * nIy + nEz * nIz)
-    area_ref = dlon_m * dlat_m
+    # uavsar_calib.cpp line 443/630: area = area_ref/|nE.nI| with area_ref = delta_az*delta_R
+    area_ref = dlon_m * dlat_m if area_ref_m2 is None else np.float32(area_ref_m2)
     area = area_ref / np.maximum(denom, 1e-6)
 
     return theta_l_deg, area
@@ -203,3 +205,25 @@ def apply_area_correction(backscatter_uncorrected, area_rdc_filled, area_ref_nom
     if area_ref_nominal is None:
         area_ref_nominal = np.median(area_rdc_filled)
     return backscatter_uncorrected * (area_ref_nominal / area_rdc_filled)
+
+
+def compute_gamma0_ratio(area_facet, theta_l_deg, azimuth_idx, range_idx, n_azimuth, n_range,
+                         theta_ih_col_rad, area_ref_m2, inc_max_deg=70.0, inc_min_deg=15.0,
+                         ratio_min=0.001, ratio_max=1000.0):
+    """
+    Correction ratio faithful to uavsar_calib.cpp, area-correction branch (cos_flag off):
+        ratio = area_fe * (area_ref / areaRDC) / cos(theta_l)
+    area_fe = 1/sin(theta_ih): removes the flat-earth normalisation already in the input
+    sigma0 (compute_area_fe() in math_uavsar.h; for ALOS, JAXA L1.1 sigma0 from CF-32).
+    areaRDC and theta_l are IDW weighted averages (C++ lines 730-745); pixels with no facet
+    contribution are void (no gap filling). Void also where theta_l > 70 deg or < 15 deg
+    (C++ lines 813-814, 971). Ratio clipped to [0.001, 1000] (C++ line 127).
+    antcor (UAVSAR antenna pattern) is not applied.
+    Returns ratio (float32, n_azimuth x n_range) and valid mask (bool).
+    """
+    aR, fill = accumulate_area_rdc(area_facet, azimuth_idx, range_idx, n_azimuth, n_range, outlier_factor=1e30)
+    aT, _ = accumulate_area_rdc(np.radians(theta_l_deg), azimuth_idx, range_idx, n_azimuth, n_range, outlier_factor=1e30)
+    valid = fill & (aT <= np.radians(inc_max_deg)) & (aT >= np.radians(inc_min_deg))
+    area_fe = 1.0 / np.sin(np.asarray(theta_ih_col_rad, dtype=np.float64))
+    ratio = area_fe[None, :] * (area_ref_m2 / np.where(fill, aR, 1.0)) / np.cos(aT)
+    return np.clip(ratio, ratio_min, ratio_max).astype(np.float32), valid
