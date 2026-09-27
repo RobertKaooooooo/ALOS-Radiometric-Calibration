@@ -99,3 +99,16 @@ def ground_to_radar(lat_deg, lon_deg, h, t_first, t_last, n_azimuth,
     P, _ = interpolate_position_velocity_vec(t, t0, interval, positions, velocities)
     rg = (np.linalg.norm(P - G, axis=1) - near_range_m) / pixel_spacing_m
     return az, rg
+
+
+def heading_from_velocity(P, V):
+    """
+    Flight heading (radians, clockwise from north) from ECR position P and
+    velocity V: V projected onto the local east and north unit vectors at
+    the geodetic latitude/longitude of P. Same formula as used for Fig. 1.
+    """
+    lat = np.arctan2(P[2], np.hypot(P[0], P[1]) * (1 - WGS84_E2))
+    lon = np.arctan2(P[1], P[0])
+    east = np.array([-np.sin(lon), np.cos(lon), 0.0])
+    north = np.array([-np.sin(lat) * np.cos(lon), -np.sin(lat) * np.sin(lon), np.cos(lat)])
+    return np.arctan2(V @ east, V @ north)

@@ -1,8 +1,9 @@
 """
 run_pipeline.py
 
-End-to-end driver for the ALOS PALSAR radiometric-terrain-correction
-geometry pipeline. See README.md for the full process flow diagram.
+DEPRECATED. Old end-to-end driver. It uses four-corner geolocation,
+linear orbit interpolation, yaw = 0 and a hard-coded heading (-13.706 deg),
+all of which were found to be wrong. Kept only for history. See README.md for the full process flow diagram.
 
 Usage
 -----
@@ -163,6 +164,7 @@ def run_full():
 
 
 if __name__ == '__main__':
+    raise SystemExit("run_pipeline.py is deprecated (corner geolocation, linear orbit interpolation, yaw=0, hard-coded heading). Use geolocate.ground_to_radar() and area_correction.compute_gamma0_ratio(); see README.md.")
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', choices=['verify', 'full'], default='verify')
     args = parser.parse_args()

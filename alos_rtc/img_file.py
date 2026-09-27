@@ -29,6 +29,8 @@ def read_line_time_ms(img_path, line_index, n_range):
     """
     Read the millisecond-of-day timestamp for a given azimuth line,
     from Signal Data Record byte 45-48 (4-byte big-endian binary integer).
+    NOTE: despite the function name, the return value is in SECONDS of day
+    (the stored milliseconds are divided by 1000). Do not divide again.
     """
     rl = record_length(n_range)
     with open(img_path, 'rb') as f:

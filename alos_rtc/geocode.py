@@ -91,11 +91,11 @@ def process_full_image(led_path, img_path, dem, dem_lat_top, dem_lon_left,
     grid (n_azimuth x n_range), writing results to disk with
     np.memmap so the whole array is never held in RAM at once.
 
-    yaw is set to 0 for every pixel in this reference implementation
-    (verified negligible: Attitude Data Record shows <0.06 deg yaw
-    variation over a 21-second window for this product). Replace with
-    a per-line interpolated yaw if working with a product where yaw
-    varies more.
+    DEPRECATED. yaw is fixed to 0 for every pixel here. This is NOT
+    negligible: the Attitude Data Record gives yaw of about -2.8 deg for
+    ALPSRP237630880. An earlier version of this note claimed the effect
+    was negligible; that claim was incorrect and has been withdrawn.
+    Use geolocate.ground_to_radar() with the interpolated LED yaw instead.
     """
     theta_ih_per_column = geometry.compute_theta_ih(
         coefficients,

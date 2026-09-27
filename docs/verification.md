@@ -140,3 +140,18 @@ Fix: North_hat = cross(P_hat, East_hat)
 Corrected heading: -13.706322775792932 deg (~346.3 deg, northbound) --
   consistent with ASCEND
 ```
+
+
+## 10. Superseded values (added later)
+
+- The heading -13.7063 deg in Sections 5 and 9 came from the early
+  corner-based pipeline. It is superseded by the heading computed from the
+  interpolated velocity vector at scene-centre time: -14.021 deg
+  (ALPSRP049750870) and -14.038 deg (ALPSRP237630880).
+- Sections 4-5 used linear orbit interpolation, zero-Doppler geometry,
+  yaw = 0 and arctan2 aspect. All four were later found to be wrong and fixed
+  (see README.md, "Errors found and fixed during development").
+- Leader File field positions were later checked against JAXA NEB-070062B:
+  line/pixel spacing DSSR 1687-1718, Doppler centroid DSSR 1735-1766
+  (fd = a + b*R, R in km), sensor clock angle DSSR 477-484 (= 90.000,
+  right-looking), yaw steering flag DSSR 1831-1834 (= 0), CF = -83.0.

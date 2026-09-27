@@ -105,23 +105,17 @@ def read_platform_position_record(led_path):
 
 def interpolate_position_velocity(led_path, t_line):
     """
-    Linearly interpolate the satellite position (P) and velocity (V)
-    vectors to an arbitrary time-of-day `t_line` (seconds), by
-    bracketing between the two nearest of the 28 recorded orbit points.
+    Satellite position (P) and velocity (V) at time-of-day `t_line` (s).
 
-    This is the author's own code (the 28 raw points themselves are
-    JAXA's precise orbit determination output, not computed here).
+    Uses cubic Hermite interpolation (geolocate.interpolate_position_velocity_vec).
+    An earlier version used linear interpolation between the 60-s state
+    vectors, which placed the satellite 2.5-3.4 km too low; it was removed.
     """
+    from .geolocate import interpolate_position_velocity_vec
     t0, interval, positions, velocities = read_platform_position_record(led_path)
-    n_points = len(positions)
-
-    idx = int((t_line - t0) / interval)
-    idx = max(0, min(idx, n_points - 2))
-    frac = (t_line - (t0 + idx * interval)) / interval
-
-    P = positions[idx] * (1 - frac) + positions[idx + 1] * frac
-    V = velocities[idx] * (1 - frac) + velocities[idx + 1] * frac
-    return P, V
+    P, V = interpolate_position_velocity_vec(np.array([float(t_line)]), t0, interval,
+                                             positions, velocities)
+    return P[0], V[0]
 
 
 def read_attitude_record(led_path):
@@ -175,3 +169,16 @@ def interpolate_pitch(led_path, t_line, att_cache=None):
     frac = (t_line - times[idx]) / (times[idx + 1] - times[idx])
     pitch_interp_deg = pitch_deg[idx] * (1 - frac) + pitch_deg[idx + 1] * frac
     return np.radians(pitch_interp_deg)
+
+
+RDR_BASE = 720 + 4096 + 4680 + 8192  # Radiometric Data Record (Level 1.1: no map projection record)
+
+
+def read_calibration_factor(led_path):
+    """
+    Calibration factor CF (dB) from the Radiometric Data Record, bytes 21-36
+    (JAXA NEB-070062B). Level 1.1: sigma0 = 10*log10(I^2+Q^2) + CF - 32.0.
+    """
+    with open(led_path, 'rb') as f:
+        f.seek(RDR_BASE + 21 - 1)
+        return float(f.read(16).decode('ascii').strip())

@@ -81,7 +81,7 @@ def compute_nE_horn(Z, dlon_m, dlat_m, heading_rad):
         Local ground spacing (meters) between adjacent DEM columns/rows.
     heading_rad : float
         Flight heading, radians. For ALOS this is the satellite
-        heading derived from the velocity vector V (see main.py); for
+        heading derived from the velocity vector V (computed by the caller; see README.md); for
         UAVSAR it is peg.heading from the ann file.
 
     Returns

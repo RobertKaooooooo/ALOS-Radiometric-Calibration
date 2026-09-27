@@ -32,85 +32,79 @@ appears, and the same wording is used consistently throughout:
   No citation to Simard is attached. This is the author's own
   contribution: all of `leader_file.py` and `img_file.py` (ALOS CEOS
   byte-offset parsing, based on the official JAXA format specification
-  NEB-070062B), and the corner-based geocoding in `geocode.py`.
+  NEB-070062B), and the Doppler-centroid ground-to-radar geolocation in `geolocate.py`.
 
 **Rule:** if a formula came from Simard's paper or code, cite it every
 time it reappears, even briefly. If the formula is the author's own
 (byte parsing, interpolation, ALOS-specific geometry), never attach
 Simard's citation to it, even where it sits next to code that does.
 
-## Process flow
+## Process flow (current)
 
-```
-1. Read Leader File
-   |- Platform Position Data Record  -> P(t), V(t)   [leader_file.py]
-   |- Attitude Data Record           -> pitch(t)      [leader_file.py]
-   |- Data Set Summary Record        -> six coefficients (a0..a5),
-   |                                    ESA-related fields            [leader_file.py]
-   v
-2. Read IMG file (Signal Data Record)
-   |- per-line acquisition time (ms)                  [img_file.py]
-   |- near-range distance, pixel spacing               [img_file.py]
-   v
-3. theta_ih = a0 + a1*R + a2*R^2 + ... (six-coeff polynomial)         [geometry.py]
-   v
-4. Read DEM (GLO-30), bilinear-sample a 3x3 window per pixel          [geocode.py]
-   v
-5. nE = Horn's method on the 3x3 DEM window                           [geometry.py]
-   v
-6. nL = look-vector components in the SAME local frame as nE
-   (Simard et al. 2016 Eq. 11, ESA=0 for ALOS -- see docs/verification.md)  [geometry.py]
-   v
-7. theta_l = arccos(nE . nL)                                          [geometry.py]
-   v
-8. (per-pixel loop, batched to bound memory) -> full-image
-   theta_l raster in DEM coordinates                                  [geocode.py]
-   v
-9. (optional) resample a UAVSAR-side corrected-backscatter raster
-   onto the same DEM grid, using the (ranpix,azpix) .trans mapping
-   table -- for direct comparison against biomass/land-cover data     [geocode.py]
-```
+Leader/IMG field positions follow JAXA, "ALOS/PALSAR Level 1.1/1.5 Product
+Format Description," NEB-070062B.
 
-Run the whole thing end to end:
+1. Leader File (leader_file.py, geolocate.py): 28 ECR state vectors 60 s apart;
+   pitch and yaw; theta_ih polynomial (DSSR bytes 1887-2006, R in km);
+   line/pixel spacing (DSSR 1687-1718); Doppler centroid fd = a + b*R
+   (DSSR 1735-1766, R in km); yaw steering flag (DSSR 1831-1834) -> ESA = 0.
+2. IMG file (img_file.py, backscatter.py): line time (bytes 45-48), slant
+   range to 1st sample (117-120); sigma0 = 10*log10(I^2+Q^2) + CF - 32.0.
+3. Geolocation (geolocate.ground_to_radar): each DEM cell -> (azimuth, range)
+   by solving (P-G).V/|P-G| = -lambda*fd(R)/2 with cubic Hermite orbit
+   interpolation. No empirical offsets.
+4. Facet geometry (area_correction.compute_facet_area_and_theta_l): Horn
+   slope/aspect with atan(q/p) as in uavsar_calib.cpp; nL from Simard et al.
+   2016 Eq. 11; theta_l = arccos(nE.nL); area = area_ref/|nE.nI|.
+5. Ratio (area_correction.compute_gamma0_ratio): IDW averages onto the radar
+   grid (uavsar_calib.cpp L730-745); ratio = (1/sin theta_ih) *
+   (area_ref/areaRDC) / cos(theta_l); void if theta_l > 70 or < 15 deg;
+   clipped to [0.001, 1000].
+6. gamma0 = sigma0 * ratio.
 
-```bash
-pip install -r requirements.txt
-python run_pipeline.py --mode verify   # single test-point check (fast)
-python run_pipeline.py --mode full     # full-image processing (~6-30 min)
-```
+Flight heading is computed by the caller from the interpolated velocity at
+scene-centre time (about -14.02 deg for ALPSRP049750870, -14.04 deg for
+ALPSRP237630880). There is no end-to-end driver yet; run_pipeline.py is
+deprecated and exits immediately.
+
+## Validation against an independent product
+
+Radar-coordinate cross-correlation with the ASF Hi-Res Terrain Corrected
+product (cells of 8 lines x 2 range pixels for ALPSRP237630880):
+
+| Scene | Azimuth offset | Range offset |
+|---|---|---|
+| ALPSRP237630880 (2010-07-11, FBD) | 0 lines | 0 to +4 range pixels |
+| ALPSRP049750870 (2006-12-31, FBS) | +8 lines | +4 range pixels |
 
 ## Repository structure
 
-```
-alos_rtc/
-  leader_file.py   -- Leader File record parsing (Category C)
-  img_file.py       -- IMG file / Signal Data Record parsing (Category C)
-  geometry.py        -- theta_ih, nE, nL, theta_l (Category B)
-  geocode.py          -- corner interpolation, DEM sampling,
-                          full-image batch driver,
-                          backscatter resampling (Category C)
-run_pipeline.py    -- end-to-end driver, product-specific constants
-docs/
-  verification.md    -- hand-vs-code verification numbers for every
-                         stage, including two bugs found and fixed
-                         during development
-requirements.txt
-```
+- alos_rtc/leader_file.py: Leader File parsing (Category C)
+- alos_rtc/img_file.py: IMG Signal Data Record parsing (Category C)
+- alos_rtc/backscatter.py: I/Q to calibrated sigma0 (Category C)
+- alos_rtc/geolocate.py: Doppler-centroid geolocation (Category C)
+- alos_rtc/geometry.py: theta_ih, nE, nL, theta_l per point (Category B)
+- alos_rtc/area_correction.py: vectorised facet geometry, gamma0 ratio (Category B)
+- alos_rtc/geocode.py: DEPRECATED corner-based geocoding
+- run_pipeline.py: DEPRECATED old driver (exits immediately)
+- docs/verification.md: verification record
 
-## Known issues fixed during development
+## Errors found and fixed during development
 
-See `docs/verification.md` for full numeric detail. Summary:
+1. Heading sign error: a reversed cross-product gave 194 deg instead of about
+   -13.7 deg (that value was later superseded by the velocity-derived heading).
+2. ECEF/local-frame mismatch: nL was rotated into ECEF while nE stayed local.
+3. Invalid-pixel corruption in the original uavsar_calib.cpp (not this
+   package), fixed with -100.0f resets. The only defect found in the C++ code.
+4. Summer range pixel spacing hard-coded to 4.684 m instead of 9.369 m.
+5. Linear interpolation of 60-s orbit vectors put the satellite 2.5-3.4 km
+   too low; replaced by cubic Hermite interpolation.
+6. Zero-Doppler geometry assumed; L1.1 is focused to fd = a + b*R.
+7. Aspect via arctan2 instead of atan(q/p), reversing 47.5% of facet normals.
 
-1. **Heading sign error** -- a reversed cross-product argument order
-   produced a heading 180 deg off (194 deg instead of the correct
-   -13.7 deg), contradicted by the product's own ASCEND flag.
-2. **ECEF/local-frame mismatch** -- an earlier version rotated `nL`
-   into ECEF while `nE` stayed in the local frame; dotting the two
-   together silently mixed coordinate bases, producing an 8-15 deg
-   error even at genuinely flat terrain. Fixed by keeping `nL` in the
-   local frame throughout (see `geometry.compute_nL_local_frame`).
-3. **Invalid-pixel data corruption (UAVSAR-side C++, not this Python
-   package)** -- eight per-row output arrays in `uavsar_calib.cpp`
-   were not reset when a pixel failed validity checks, so invalid
-   pixels silently inherited the previous row's values. Fixed in the
-   C++ source with explicit `-100.0f` resets.
+## Known limitations (not yet addressed)
+
+- GLO-30 heights are EGM2008 geoid heights but are used as ellipsoidal heights.
+- The UAVSAR antenna-pattern term (antcor) is not applied.
+- The vegetation-table branch of uavsar_calib.cpp (cos_flag) is not ported.
+- DEM latitude spacing uses 111320 m per degree instead of ellipsoid radii.
