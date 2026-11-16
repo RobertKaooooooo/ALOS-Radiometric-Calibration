@@ -14,9 +14,12 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt  # noqa: E402
 import glob as _glob                                              # poster typography: text TASA Explorer, maths Cambria (as PowerPoint equations)
 from matplotlib import font_manager as _fm
-for _f in _glob.glob(os.path.expanduser('~/.fonts/*.tt[fc]')): _fm.fontManager.addfont(_f)
-plt.rcParams.update({'font.family': ['TASA Explorer', 'DejaVu Sans'], 'mathtext.fontset': 'custom', 'mathtext.rm': 'Cambria',
+_TH = bool(os.environ.get('RTC_THESIS'))                            # RTC_THESIS=1: serif fonts and plain labels for the thesis; output names get the suffix _thesis
+for _f in _glob.glob(os.path.expanduser('~/.fonts/*.tt[fc]')) + (_glob.glob('/mnt/c/Windows/Fonts/times*.ttf') if _TH else []): _fm.fontManager.addfont(_f)
+plt.rcParams.update({'font.family': ['Times New Roman', 'DejaVu Serif'], 'mathtext.fontset': 'stix'} if _TH else
+                    {'font.family': ['TASA Explorer', 'DejaVu Sans'], 'mathtext.fontset': 'custom', 'mathtext.rm': 'Cambria',
                      'mathtext.it': 'Cambria:italic', 'mathtext.bf': 'Cambria:bold', 'mathtext.fallback': 'cm'})
+_SFX = '_thesis' if _TH else ''
 
 D    = os.path.join(BASE, 'ALPSRP237630880-L1.1') + '/'
 SID  = 'ALPSRP237630880'
@@ -50,6 +53,14 @@ la = np.arctan2(Pm[2], np.hypot(Pm[0], Pm[1])*(1-geolocate.WGS84_E2)); lo = np.a
 HD = np.arctan2(Vm @ np.array([-np.sin(lo), np.cos(lo), 0]),
                 Vm @ np.array([-np.sin(la)*np.cos(lo), -np.sin(la)*np.sin(lo), np.cos(la)]))
 g = np.load(GEOFILE); rows = g['rows']; cols = g['cols']; az = g['az']; rg0 = g['rg']
+if not os.environ.get('RTC_NO_TIMEFIX'):   # fitted line-time origin (img_file.read_line_times_fit), identical to final_eq14.py
+    tf_fit, te_fit, _dt = img_file.read_line_times_fit(IMG, NR, NA)
+    az = ((tf + az*(te - tf)/(NA - 1)) - tf_fit)/(te_fit - tf_fit)*(NA - 1)
+    say('[time] line-time origin %.7f s (stamp %.3f s): azimuth shift %+.3f lines' % (tf_fit, tf, -(tf_fit - tf)/_dt))
+    tf, te = tf_fit, te_fit
+AZ_SHIFT = float(os.environ.get('RTC_AZ_SHIFT', 4.17))   # azimuth timing calibration (+4.17 lines vs ASF RT1), identical to final_eq14.py; RTC_AZ_SHIFT=0 disables
+if AZ_SHIFT:
+    az = az + AZ_SHIFT; say('[az] constant azimuth shift %+.3f lines applied to all facets' % AZ_SHIFT)
 coef = leader_file.read_six_coefficients(LED)
 if GEOID_N:
     _d = -float(GEOID_N)*np.cos(geometry.compute_theta_ih(coef, (R0 + rg0*DR)/1000.0))/DR
@@ -99,12 +110,12 @@ e = np.arange(-40, 41, 2.0); bi = np.digitize(tau_rho[m], e) - 1; acm = AC[m]
 med = [np.median(acm[bi == i]) if (bi == i).sum() > 30 else np.nan for i in range(len(e) - 1)]
 a.plot(0.5*(e[:-1] + e[1:]), med, 'o', color='#ff7f0e', ms=6, label='data median')
 a.axhline(0, color='k', lw=0.8); a.axvline(0, color='k', lw=0.5, ls=':')
-for t, txt, xy in [(0, 'flat ground: 0 dB', (6, 2.3)), (20, 'facing the radar\n20°: −2.9 dB → darkened', (-12, -6.0)), (-20, 'facing away\n20°: +1.4 dB → brightened', (-37, -3.2))]:
+for t, txt, xy in ([] if _TH else [(0, 'flat ground: 0 dB', (6, 2.3)), (20, 'facing the radar\n20°: −2.9 dB → darkened', (-12, -6.0)), (-20, 'facing away\n20°: +1.4 dB → brightened', (-37, -3.2))]):
     v = 10*np.log10(np.sin(np.radians(tim - t))/np.sin(np.radians(tim)))
     a.annotate(txt, (t, v), xytext=xy, fontsize=13, arrowprops=dict(arrowstyle='->', lw=1.2))
 a.set_xlim(-40, 40); a.set_ylim(*YL)
-a.set_xlabel('Range slope $\\tau_\\rho$ (°)   + = facing the radar'); a.set_ylabel('Area correction (dB)')
-a.set_title('(a) $\\theta_{inc}$ fixed (%.1f°), range slope varies' % tim, loc='left'); a.legend(loc='lower left', fontsize=13, frameon=False)
+a.set_xlabel('Range slope $\\tau_\\rho$ (°), positive towards the radar'); a.set_ylabel('Area correction (dB)')
+a.set_title('(a) Area correction versus range slope, $\\theta_{inc}$ = %.1f°' % tim, loc='left'); a.legend(loc='lower left', fontsize=13, frameon=False)
 a = axs[1]
 a.hexbin(tl[m], AC[m], gridsize=120, extent=(10, 75, YL[0], YL[1]), bins='log', cmap='Greys', mincnt=1)
 tt = np.linspace(10, 75, 300)
@@ -113,18 +124,18 @@ for t_, c in [(thd.min(), '#1f77b4'), (thd.max(), '#2ca02c')]:
 a.axhline(0, color='k', lw=0.8); a.axvspan(thd.min(), thd.max(), color='#fde68a', alpha=0.5)
 a.set_xlim(10, 75); a.set_ylim(*YL)
 a.set_xlabel('Local incidence angle $\\theta_{loc}$ (°)'); a.set_ylabel('Area correction (dB)')
-a.set_title('(b) Each line: $\\theta_{inc}$ fixed, slope varies $\\rightarrow$ $\\theta_{loc}$ varies', loc='left', fontsize=14)
+a.set_title('(b) Area correction versus local incidence angle', loc='left', fontsize=14)
 ti = thd.max()                                                  # examples on the green line
 for t_ in (thd.min(), thd.max()):
     a.plot(t_, 0, 'o', ms=11, mfc='white', mec='k', mew=2, zorder=5)
-a.annotate('flat ground:\n$\\theta_{loc}$ = $\\theta_{inc}$ $\\rightarrow$ 0 dB', (ti, 0), xytext=(47, 2.6), fontsize=13, arrowprops=dict(arrowstyle='->', lw=1.4))
+if not _TH: a.annotate('flat ground:\n$\\theta_{loc}$ = $\\theta_{inc}$ $\\rightarrow$ 0 dB', (ti, 0), xytext=(47, 2.6), fontsize=13, arrowprops=dict(arrowstyle='->', lw=1.4))
 for tl_, xy in [(10.0, (13, -9.3)), (60.0, (51, -3.9))]:
     v = 10*np.log10(np.sin(np.radians(tl_))/np.sin(np.radians(ti)))
     sl_ = ti - tl_
     lab = '$\\theta_{loc}$ %d°: %.0f° slope\n%s $\\rightarrow$ %+.1f dB' % (tl_, abs(sl_), 'facing the radar' if sl_ > 0 else 'facing away', v)
     a.plot(tl_, v, 'o', ms=9, color='#2ca02c', mec='k', zorder=5)
-    a.annotate(lab, (tl_, v), xytext=xy, fontsize=12.5, arrowprops=dict(arrowstyle='->', lw=1.4))
+    if not _TH: a.annotate(lab, (tl_, v), xytext=xy, fontsize=12.5, arrowprops=dict(arrowstyle='->', lw=1.4))
     say('[fig4] example on theta_inc %.1f line: theta_loc %.0f -> slope %.1f deg, %+.2f dB' % (ti, tl_, sl_, v)); a.legend(loc='upper left', fontsize=13, frameon=False)
 plt.tight_layout()
-png = os.path.join(OUT, 'poster_fig4.png'); plt.savefig(png, dpi=220, facecolor='white')
+png = os.path.join(OUT, 'poster_fig4%s.png' % _SFX); plt.savefig(png, dpi=220, facecolor='white')
 say('[saved] %s' % png); LOG.close()

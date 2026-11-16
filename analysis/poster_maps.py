@@ -18,9 +18,12 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt  # noqa: E402
 import glob as _glob                                              # poster typography: text TASA Explorer, maths Cambria (as PowerPoint equations)
 from matplotlib import font_manager as _fm
-for _f in _glob.glob(os.path.expanduser('~/.fonts/*.tt[fc]')): _fm.fontManager.addfont(_f)
-plt.rcParams.update({'font.family': ['TASA Explorer', 'DejaVu Sans'], 'mathtext.fontset': 'custom', 'mathtext.rm': 'Cambria',
+_TH = bool(os.environ.get('RTC_THESIS'))                            # RTC_THESIS=1: serif fonts and plain labels for the thesis; output names get the suffix _thesis
+for _f in _glob.glob(os.path.expanduser('~/.fonts/*.tt[fc]')) + (_glob.glob('/mnt/c/Windows/Fonts/times*.ttf') if _TH else []): _fm.fontManager.addfont(_f)
+plt.rcParams.update({'font.family': ['Times New Roman', 'DejaVu Serif'], 'mathtext.fontset': 'stix'} if _TH else
+                    {'font.family': ['TASA Explorer', 'DejaVu Sans'], 'mathtext.fontset': 'custom', 'mathtext.rm': 'Cambria',
                      'mathtext.it': 'Cambria:italic', 'mathtext.bf': 'Cambria:bold', 'mathtext.fallback': 'cm'})
+_SFX = '_thesis' if _TH else ''
 
 D    = os.path.join(BASE, 'ALPSRP237630880-L1.1') + '/'
 SID  = 'ALPSRP237630880'
@@ -54,11 +57,19 @@ la = np.arctan2(Pm[2], np.hypot(Pm[0], Pm[1])*(1-geolocate.WGS84_E2)); lo = np.a
 HD = np.arctan2(Vm @ np.array([-np.sin(lo), np.cos(lo), 0]),
                 Vm @ np.array([-np.sin(la)*np.cos(lo), -np.sin(la)*np.sin(lo), np.cos(la)]))
 g = np.load(GEOFILE); rows = g['rows']; cols = g['cols']; az = g['az']; rg0 = g['rg']
+if not os.environ.get('RTC_NO_TIMEFIX'):   # fitted line-time origin (img_file.read_line_times_fit), identical to final_eq14.py
+    tf_fit, te_fit, _dt = img_file.read_line_times_fit(IMG, NR, NA)
+    az = ((tf + az*(te - tf)/(NA - 1)) - tf_fit)/(te_fit - tf_fit)*(NA - 1)
+    say('[time] line-time origin %.7f s (stamp %.3f s): azimuth shift %+.3f lines' % (tf_fit, tf, -(tf_fit - tf)/_dt))
+    tf, te = tf_fit, te_fit
+AZ_SHIFT = float(os.environ.get('RTC_AZ_SHIFT', 4.17))   # azimuth timing calibration (+4.17 lines vs ASF RT1), identical to final_eq14.py; RTC_AZ_SHIFT=0 disables
+if AZ_SHIFT:
+    az = az + AZ_SHIFT; say('[az] constant azimuth shift %+.3f lines applied to all facets' % AZ_SHIFT)
 coef = leader_file.read_six_coefficients(LED)
 if GEOID_N:
     _d = -float(GEOID_N)*np.cos(geometry.compute_theta_ih(coef, (R0 + rg0*DR)/1000.0))/DR
     rg0 = rg0 + _d
-    print('[geoid] N = %+.2f m -> range shift %+.2f to %+.2f px; outputs in %s' % (float(GEOID_N), _d.min(), _d.max(), OUT)); del _d
+    say('[geoid] N = %+.2f m -> range shift %+.2f to %+.2f px; outputs in %s' % (float(GEOID_N), _d.min(), _d.max(), OUT)); del _d
 nd = int(round(np.sqrt(os.path.getsize(DEMFILE)/4)))
 dem = np.fromfile(DEMFILE, dtype=np.float32).reshape(nd, nd)
 coef = leader_file.read_six_coefficients(LED)
@@ -123,14 +134,14 @@ say('[maps] grid %d x %d (~3 arcsec); before median %.2f std %.2f | after (Eq.14
 ZB = [-71.33, -71.17, 44.28, 44.44]          # zoom box (lon0, lon1, lat0, lat1)
 vmin, vmax = -19, -9
 fig, axs = plt.subplots(2, 2, figsize=(11, 10.5), gridspec_kw=dict(height_ratios=[1, 1]))
-for a, im, t in [(axs[0, 0], B, '(a) Before RTC: HV $\\gamma^0$, $n$ = 0.5 (no DEM)'), (axs[0, 1], Aft, '(b) After RTC: HV $\\gamma^0$, $n$ = 0.5 (window integration)')]:
+for a, im, t in [(axs[0, 0], B, '(a) Before correction: HV $\\gamma^0$, $n$ = 0.5 ($\\theta_{inc}$, no DEM)'), (axs[0, 1], Aft, '(b) After correction: window integration, $n$ = 0.5')]:
     m = a.imshow(im, extent=ext, origin='upper', cmap='gray', vmin=vmin, vmax=vmax, interpolation='nearest')
     a.add_patch(plt.Rectangle((ZB[0], ZB[2]), ZB[1]-ZB[0], ZB[3]-ZB[2], fill=False, ec='red', lw=1.5))
     a.set_title(t, fontsize=11); a.set_xlabel('Longitude (°)'); a.set_ylabel('Latitude (°)'); a.set_aspect(1/np.cos(np.radians(44.5)))
-for a, im, t in [(axs[1, 0], B, '(c) Before: zoom (red box)'), (axs[1, 1], Aft, '(d) After: zoom (red box)')]:
+for a, im, t in [(axs[1, 0], B, '(c) Before correction, area in the red frame'), (axs[1, 1], Aft, '(d) After correction, area in the red frame')]:
     a.imshow(im, extent=ext, origin='upper', cmap='gray', vmin=vmin, vmax=vmax, interpolation='nearest')
     a.set_xlim(ZB[0], ZB[1]); a.set_ylim(ZB[2], ZB[3]); a.set_title(t, fontsize=11)
     a.set_xlabel('Longitude (°)'); a.set_ylabel('Latitude (°)'); a.set_aspect(1/np.cos(np.radians(44.5)))
-cb = fig.colorbar(m, ax=axs, shrink=0.6, pad=0.02); cb.set_label('Backscatter, HV, ~100 m (dB)')
-png = os.path.join(OUT, 'poster_maps_eq14.png'); plt.savefig(png, dpi=200, facecolor='white', bbox_inches='tight')
+cb = fig.colorbar(m, ax=axs, shrink=0.6, pad=0.02); cb.set_label('HV $\\gamma^0$, $n$ = 0.5, 100 m (dB)')
+png = os.path.join(OUT, 'poster_maps_eq14%s.png' % _SFX); plt.savefig(png, dpi=200, facecolor='white', bbox_inches='tight')
 say('[saved] %s' % png); LOG.close()

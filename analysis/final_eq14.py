@@ -29,9 +29,12 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt  # noqa: E402
 import glob as _glob                                              # poster typography: text TASA Explorer, maths Cambria (as PowerPoint equations)
 from matplotlib import font_manager as _fm
-for _f in _glob.glob(os.path.expanduser('~/.fonts/*.tt[fc]')): _fm.fontManager.addfont(_f)
-plt.rcParams.update({'font.family': ['TASA Explorer', 'DejaVu Sans'], 'mathtext.fontset': 'custom', 'mathtext.rm': 'Cambria',
+_TH = bool(os.environ.get('RTC_THESIS'))                            # RTC_THESIS=1: serif fonts and plain labels for the thesis; output names get the suffix _thesis
+for _f in _glob.glob(os.path.expanduser('~/.fonts/*.tt[fc]')) + (_glob.glob('/mnt/c/Windows/Fonts/times*.ttf') if _TH else []): _fm.fontManager.addfont(_f)
+plt.rcParams.update({'font.family': ['Times New Roman', 'DejaVu Serif'], 'mathtext.fontset': 'stix'} if _TH else
+                    {'font.family': ['TASA Explorer', 'DejaVu Sans'], 'mathtext.fontset': 'custom', 'mathtext.rm': 'Cambria',
                      'mathtext.it': 'Cambria:italic', 'mathtext.bf': 'Cambria:bold', 'mathtext.fallback': 'cm'})
+_SFX = '_thesis' if _TH else ''
 
 D    = os.path.join(BASE, 'ALPSRP237630880-L1.1') + '/'
 SID  = 'ALPSRP237630880'
@@ -68,16 +71,16 @@ g = np.load(GEOFILE); rows = g['rows']; cols = g['cols']; az = g['az']; rg0 = g[
 if not os.environ.get('RTC_NO_TIMEFIX'):   # the facet file was geolocated with the integer-ms stamps of lines 0 and NA-1; re-map to fitted line times
     tf_fit, te_fit, _dt = img_file.read_line_times_fit(IMG, NR, NA)
     az = ((tf + az*(te - tf)/(NA - 1)) - tf_fit)/(te_fit - tf_fit)*(NA - 1)
-    print('[time] line-time origin %.7f s (stamp %.3f s): azimuth shift %+.3f lines' % (tf_fit, tf, -(tf_fit - tf)/_dt))
+    say('[time] line-time origin %.7f s (stamp %.3f s): azimuth shift %+.3f lines' % (tf_fit, tf, -(tf_fit - tf)/_dt))
     tf, te = tf_fit, te_fit
 AZ_SHIFT = float(os.environ.get('RTC_AZ_SHIFT', 4.17))   # azimuth timing calibration (lines): +4.17 estimated vs ASF RT1 via GEOCHK cross-correlation, uniform across 3x3 image blocks (4.11-4.24); set RTC_AZ_SHIFT=0 to disable
 if AZ_SHIFT:
-    az = az + AZ_SHIFT; print('[az] constant azimuth shift %+.3f lines applied to all facets' % AZ_SHIFT)
+    az = az + AZ_SHIFT; say('[az] constant azimuth shift %+.3f lines applied to all facets' % AZ_SHIFT)
 coef = leader_file.read_six_coefficients(LED)
 if GEOID_N:
     _d = -float(GEOID_N)*np.cos(geometry.compute_theta_ih(coef, (R0 + rg0*DR)/1000.0))/DR
     rg0 = rg0 + _d
-    print('[geoid] N = %+.2f m -> range shift %+.2f to %+.2f px; outputs in %s' % (float(GEOID_N), _d.min(), _d.max(), OUT)); del _d
+    say('[geoid] N = %+.2f m -> range shift %+.2f to %+.2f px; outputs in %s' % (float(GEOID_N), _d.min(), _d.max(), OUT)); del _d
 nd = int(round(np.sqrt(os.path.getsize(DEMFILE)/4)))
 dem = np.fromfile(DEMFILE, dtype=np.float32).reshape(nd, nd)
 coef = leader_file.read_six_coefficients(LED)
@@ -344,7 +347,7 @@ if not os.environ.get('RTC_ONLY_T6'):
                 axP[j].text(0.04, 0.96, '$r$ = %.3f\nRMSE = %.3f dB' % (rr, rm), transform=axP[j].transAxes, va='top', fontsize=16, bbox=dict(fc='white', ec='0.7'))
                 axP[j].set_xlabel('CCI AGB 2010 (Mg ha$^{-1}$)')
             axP[0].set_ylabel('HV $\\gamma^0$, $n$ = 0.5 (dB)')
-            figP.tight_layout(); figP.savefig(os.path.join(OUT, 'poster_F1_same.png'), dpi=220, facecolor='white'); plt.close(figP)
+            figP.tight_layout(); figP.savefig(os.path.join(OUT, 'poster_F1_same%s.png' % _SFX), dpi=220, facecolor='white'); plt.close(figP)
         fig.suptitle('Same quantity in every method: rows = quantity, columns = method; %d cells fitted, %d shown' % (len(rows_[0][1]), len(sel)), fontsize=12)
         plt.tight_layout(); plt.savefig(os.path.join(OUT, 'F1_same_quantity.png'), dpi=200, facecolor='white'); plt.close()
         say('\n[saved] final_eq14_SAME_log.txt, F1_same_quantity.png, poster_F1_same.png in %s' % OUT); LOG.close(); sys.exit(0)
@@ -413,16 +416,16 @@ if not os.environ.get('RTC_ONLY_T6'):
             a_.text(0.04, 0.96, 'r = %.3f\nRMSE = %.3f dB' % (rr, rm), transform=a_.transAxes, va='top', fontsize=16, bbox=dict(fc='white', ec='0.7'))
             a_.set_xlabel('CCI AGB 2010 (Mg ha$^{-1}$)')
         axs[0].set_ylabel('HV backscatter (dB)')
-        plt.tight_layout(); plt.savefig(os.path.join(OUT, 'poster_F1.png'), dpi=220, facecolor='white'); plt.close()
+        plt.tight_layout(); plt.savefig(os.path.join(OUT, 'poster_F1%s.png' % _SFX), dpi=220, facecolor='white'); plt.close()
         # P2 distributions
         fig, axs = plt.subplots(1, 2, figsize=(16, 5.4)); hb = np.arange(-20, -4, 0.2)
-        for a_, (k1, k2, t) in zip(axs, [('su', 'sg', '(a) $\\sigma^0$ before vs after'), ('u', 'g', '(b) $\\gamma^0$ = $\\sigma^0$ / $\\cos\\theta_{inc}$ before vs after')]):
-            for kx, c, lab in [(k1, '#1f77b4', 'before'), (k2, '#d62728', 'after')]:
+        for a_, (k1, k2, t) in zip(axs, [('su', 'sg', '(a) $\\sigma^0$'), ('u', 'g', '(b) $\\gamma^0$ = $\\sigma^0$ / $\\cos\\theta_{inc}$')]):
+            for kx, c, lab in [(k1, '#1f77b4', 'Before correction'), (k2, '#d62728', 'After correction')]:
                 y_ = CG[3][kx][mP]; a_.hist(y_, hb, density=True, alpha=0.5, color=c, label='%s: median %.2f, std %.2f dB' % (lab, np.median(y_), y_.std()))
                 a_.axvline(np.median(y_), color=c, ls='--', lw=1.5)
             a_.set_title(t, loc='left'); a_.set_xlabel('HV backscatter, 100 m (dB)'); a_.legend(frameon=False, loc='upper left', fontsize=13)
         axs[0].set_ylabel('Probability density')
-        plt.tight_layout(); plt.savefig(os.path.join(OUT, 'poster_F2.png'), dpi=220, facecolor='white'); plt.close()
+        plt.tight_layout(); plt.savefig(os.path.join(OUT, 'poster_F2%s.png' % _SFX), dpi=220, facecolor='white'); plt.close()
         say('[poster F2] %d cells: sigma0 %.2f/%.2f -> %.2f/%.2f | gamma0 %.2f/%.2f -> %.2f/%.2f (median/std)' % ((mP.sum(),) + tuple(
             v for kx in ('su', 'sg', 'u', 'g') for v in (np.median(CG[3][kx][mP]), CG[3][kx][mP].std()))))
         # P4 angle trend
@@ -433,16 +436,16 @@ if not os.environ.get('RTC_ONLY_T6'):
             c, ls, mk = sty[kx]
             axs[0].plot(tc, [np.median(F[kx][3][ti == i]) if (ti == i).sum() > 50 else np.nan for i in range(len(tc))], color=c, ls=ls, marker=mk, ms=7, lw=2.5, label=PL[kx])
             axs[1].plot([r_[0] for r_ in rows_t], [r_[1][keys.index(kx)] for r_ in rows_t], color=c, ls=ls, marker=mk, ms=8, lw=2.5)
-        axs[1].plot([34.5, 39.5, 44.5], [0.078, 0.059, 0.050], 'k*', ms=18, label='Simard et al. Fig. 10')
+        axs[1].plot([34.5, 39.5, 44.5], [0.078, 0.059, 0.050], 'k*', ms=18, label='Simard et al. (2016), Fig. 10')
         for a_ in axs: a_.axhline(0, color='k', lw=0.8)
         axs[1].axhline(0, color='k', lw=2.2)
-        axs[1].text(33.4, 0.006, '0 = no angle dependence (ideal)', fontsize=15, va='bottom', fontweight='bold')
+        if not _TH: axs[1].text(33.4, 0.006, '0 = no angle dependence (ideal)', fontsize=15, va='bottom', fontweight='bold')
         axs[0].set_xlabel('Local incidence angle $\\theta_{loc}$ (°)'); axs[0].set_ylabel('Residual (dB)')
         axs[0].set_title('(a) Residual of the AGB regression', loc='left')
         axs[1].set_xlabel('$\\theta_{inc}$ bin (°)'); axs[1].set_ylabel('Residual slope (dB/°)')
-        axs[1].set_title('(b) Slope per 1° bin vs. the paper', loc='left'); axs[1].set_xlim(33, 46)
+        axs[1].set_title('(b) Residual slope per 1° bin of $\\theta_{inc}$', loc='left'); axs[1].set_xlim(33, 46)
         axs[0].legend(frameon=False, loc='lower left', fontsize=13); axs[1].legend(frameon=False, loc='lower right', fontsize=13)
-        plt.tight_layout(); plt.savefig(os.path.join(OUT, 'poster_F4.png'), dpi=220, facecolor='white'); plt.close()
+        plt.tight_layout(); plt.savefig(os.path.join(OUT, 'poster_F4%s.png' % _SFX), dpi=220, facecolor='white'); plt.close()
         say('[saved] poster_F1.png, poster_F2.png, poster_F4.png in %s' % OUT)
     if os.environ.get('RTC_FIGS_ONLY'):
         say('\n[saved] F1_regression_eq14.png, F4_angle_trend_eq14.png (figures only) in %s' % OUT); LOG.close(); sys.exit(0)
@@ -496,6 +499,6 @@ else:
     RG = run(rg0 + drg, bs); del thc, drg
     cbG, ctlG, _, CG = cells(RG, {'uncorrected sigma0': RG['u_all'], 'current code gamma0': RG['g_old'],
                                   'Eq14 sigma0 n=0': RG['sB'], 'Eq14 gamma0 n=0.5': RG['sB']/np.sqrt(RG['cB'])})
-    table('[T6] ellipsoid heights (geoid-corrected range positions)', cbG, ctlG, CG)
+    table('[T6] geoid shift applied twice (2N) on top of RTC_GEOID_SHIFT: consistency check, expected to be worse' if GEOID_N else '[T6] ellipsoid heights (geoid-corrected range positions)', cbG, ctlG, CG)
 say('\n[saved] final_eq14_log.txt, F1_regression_eq14.png, F4_angle_trend_eq14.png in %s' % OUT)
 LOG.close()
