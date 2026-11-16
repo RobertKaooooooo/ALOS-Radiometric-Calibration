@@ -128,8 +128,8 @@ Both cross-validation folds select n = 0.5 (test r 0.700 and 0.713).
 Convergence (`final_eq14_OVS_K4_log.txt`, `final_eq14_OVS_K8_log.txt`): K = 4
 is biased by about 2 dB (median sigma0 -10.39 dB versus -12.44 dB); K = 8
 agrees with window integration (r 0.707 versus 0.706 for gamma0 n = 0.5).
-K = 16 was run before the line-time fix and the azimuth calibration
-(`out_ellip_v1`) and agrees with K = 8; to be rerun.
+K = 16 (rerun with the line-time fix and the azimuth calibration) agrees with K = 8 to 0.001 in r; the earlier run before both fixes
+is kept in `out_ellip_v1`.
 
 Geolocation (`final_eq14_GEOCHK_log.txt`): per-facet correlation with the ASF
 product gives a range offset of +2.32 pixels without and +0.04 pixel with the
