@@ -5,3 +5,19 @@ output/
 *.trans
 __pycache__/
 *.pyc
+# data and outputs (ALOS / ASF / CCI data must not be redistributed)
+*.tif
+*.tiff
+*.npz
+*.npy
+*.grd
+*.hgt
+*.ann
+*.zip
+*.tar.gz
+*.h5
+out/
+out_ellip/
+scripts/out/
+scripts/out_ellip/
+*_log.txt

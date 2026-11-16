@@ -88,6 +88,19 @@ product (cells of 8 lines x 2 range pixels for ALPSRP237630880):
 - alos_rtc/geocode.py: DEPRECATED corner-based geocoding
 - run_pipeline.py: DEPRECATED old driver (exits immediately)
 - docs/verification.md: verification record
+- analysis/: thesis and poster analysis scripts (see docs/analysis.md)
+- docs/analysis.md: run modes, inputs, outputs and results of the analysis
+
+## Analysis scripts (thesis and poster)
+
+`analysis/` contains the scripts that produce the figures and tables of the
+master's thesis and the TASTI 2026 poster: window integration with the
+Eq. 14 weights, same-quantity regressions against ESA CCI AGB, a benchmark
+against the ASF RTC product, spatial block bootstrap, cross-validation of the
+angular exponent, and a convergence test of per-pixel correction on
+oversampled facets. Run modes, inputs, log files and the results used in the
+thesis are documented in [docs/analysis.md](docs/analysis.md). No data are
+included.
 
 ## Errors found and fixed during development
 
@@ -104,7 +117,9 @@ product (cells of 8 lines x 2 range pixels for ALPSRP237630880):
 
 ## Known limitations (not yet addressed)
 
-- GLO-30 heights are EGM2008 geoid heights but are used as ellipsoidal heights.
+- GLO-30 heights are EGM2008 geoid heights. The `alos_rtc` package still uses them
+  as ellipsoidal heights; the analysis scripts apply a constant EGM2008 undulation
+  (N = -27.32 m at the scene centre) through `RTC_GEOID_SHIFT` (see docs/analysis.md).
 - The UAVSAR antenna-pattern term (antcor) is not applied.
 - The vegetation-table branch of uavsar_calib.cpp (cos_flag) is not ported.
 - DEM latitude spacing uses 111320 m per degree instead of ellipsoid radii.
