@@ -10,7 +10,7 @@ and the accompanying `uavsar_calib.cpp`
 
 Where the underlying physical formula is identical to UAVSAR's (the
 look-vector components l_s, l_c, l_h of Eq. 11, and the terrain-normal
-construction from Horn's method), this module follows the same
+construction from the 3 x 3 DEM gradient), this module follows the same
 equations but substitutes ALOS-specific inputs (P, V from the Platform
 Position Data Record; theta_ih from the six-coefficient polynomial
 instead of UAVSAR's triangle construction) in place of UAVSAR's
@@ -66,8 +66,8 @@ def slant_range_km(near_range_m, pixel_spacing_m, range_index):
 
 def compute_nE_horn(Z, dlon_m, dlat_m, heading_rad):
     """
-    Ground-surface unit normal vector via Horn's method, identical in
-    form to the UAVSAR implementation in uavsar_calib.cpp.
+    Ground-surface unit normal vector from the unweighted 3 x 3 difference (Sharpnack and Akin, 1969; divisor 6), as in uavsar_calib.cpp lines 567-568 -- not Horn's (1981) weighted operator (divisor 8).
+    The function name is kept for backward compatibility.
 
     Parameters
     ----------

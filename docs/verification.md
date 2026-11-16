@@ -64,7 +64,7 @@ difference = 0.00000000
 |nL| = 0.99996929
 ```
 
-## 5. ALOS nE -- Horn's method, same scene-center pixel
+## 5. ALOS nE -- 3 x 3 DEM gradient (Sharpnack-Akin, divisor 6, as in uavsar_calib.cpp), same scene-center pixel
 
 ```
 p=-0.261660  q=-0.125826

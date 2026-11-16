@@ -24,7 +24,7 @@ appears, and the same wording is used consistently throughout:
   adapted for ALOS.** Cited as: *(this work, following Simard et al.
   2016 Eq. \<N\>)*. This applies wherever the underlying physical
   formula is identical to UAVSAR's (the look-vector components in
-  `geometry.compute_nL_local_frame`, and the Horn's-method terrain
+  `geometry.compute_nL_local_frame`, and the 3 x 3-gradient terrain
   normal in `geometry.compute_nE_horn`), but the inputs are ALOS-
   specific.
 
@@ -53,8 +53,9 @@ Format Description," NEB-070062B.
 3. Geolocation (geolocate.ground_to_radar): each DEM cell -> (azimuth, range)
    by solving (P-G).V/|P-G| = -lambda*fd(R)/2 with cubic Hermite orbit
    interpolation. No empirical offsets.
-4. Facet geometry (area_correction.compute_facet_area_and_theta_l): Horn
-   slope/aspect with atan(q/p) as in uavsar_calib.cpp; nL from Simard et al.
+4. Facet geometry (area_correction.compute_facet_area_and_theta_l): 3 x 3
+   unweighted gradient (divisor 6, uavsar_calib.cpp lines 567-568; not Horn's
+   weighted operator) for slope/aspect with atan(q/p) as in uavsar_calib.cpp; nL from Simard et al.
    2016 Eq. 11; theta_l = arccos(nE.nL); area = area_ref/|nE.nI|.
 5. Ratio (area_correction.compute_gamma0_ratio): IDW averages onto the radar
    grid (uavsar_calib.cpp L730-745); ratio = (1/sin theta_ih) *
