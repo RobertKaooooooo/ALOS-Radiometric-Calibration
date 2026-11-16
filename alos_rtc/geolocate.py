@@ -16,7 +16,8 @@ zero-Doppler: f_dc(R) = c0 + c1 * R_km, read from the Leader File
 Summary Record; R_km is the absolute slant range in km).
 
 Two bugs fixed here (verified against the ASF Hi-Res Terrain Corrected
-product for ALPSRP237630880: residual 0 lines azimuth, 0-4 px range):
+product for ALPSRP237630880 on 8 x 2 pixel cells: residual 0 lines
+azimuth, 0-4 px range; see the note on the line-time origin below):
   1. Orbit interpolation: state vectors are 60 s apart; linear
      interpolation puts the satellite 2.5-3.4 km too low (chord vs arc).
      Now cubic Hermite using both P and V (sub-metre error).
@@ -24,6 +25,15 @@ product for ALPSRP237630880: residual 0 lines azimuth, 0-4 px range):
      the Doppler centroid polynomial above (~125 Hz), which shifted
      targets by ~540 azimuth lines (~0.25 s).
 With both fixes no empirical time offset or range calibration is needed.
+
+Line-time origin (2026-11): t_first/t_last must come from
+img_file.read_line_times_fit(), not from the integer-millisecond stamps of
+the first and last line, which are rounded and put the azimuth origin about
+0.93 line off for ALPSRP237630880. A finer check against the ASF product
+(per-facet correlation, see analysis/final_eq14.py RTC_GEOCHK) still shows a
+residual of about +4 azimuth lines (about 13 m) after this fix, whose cause
+is not yet identified; the range residual is 0.04 pixel after the geoid
+correction.
 """
 
 import numpy as np

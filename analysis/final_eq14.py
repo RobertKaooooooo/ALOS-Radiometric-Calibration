@@ -47,7 +47,7 @@ WA, WR = 31, 7
 INC_MIN, INC_MAX = 15.0, 70.0
 GEOID_N = os.environ.get('RTC_GEOID_SHIFT')   # EGM2008 undulation (m): heights -> ellipsoid, range shift -N*cos(theta_inc)/DR
 OUT = os.path.join(BASE, 'scripts', 'out_ellip' if GEOID_N else 'out'); os.makedirs(OUT, exist_ok=True)
-LOG = open(os.path.join(OUT, 'final_eq14_OVS_log.txt' if os.environ.get('RTC_OVS') else 'final_eq14_ASF_log.txt' if os.environ.get('RTC_ASF') else 'final_eq14_SAME_log.txt' if os.environ.get('RTC_SAME') else 'final_eq14_T6_log.txt' if os.environ.get('RTC_ONLY_T6') else 'final_eq14_log.txt'), 'w')
+LOG = open(os.path.join(OUT, ('az%+.2f_' % float(os.environ['RTC_AZ_SHIFT']) if os.environ.get('RTC_AZ_SHIFT') else '') + ('final_eq14_GEOCHK_log.txt' if os.environ.get('RTC_GEOCHK') else 'final_eq14_OVS_log.txt' if os.environ.get('RTC_OVS') else 'final_eq14_ASF_log.txt' if os.environ.get('RTC_ASF') else 'final_eq14_SAME_log.txt' if os.environ.get('RTC_SAME') else 'final_eq14_T6_log.txt' if os.environ.get('RTC_ONLY_T6') else 'final_eq14_log.txt')), 'w')
 def say(s):
     print(s); LOG.write(s + '\n'); LOG.flush()
 db = lambda x: 10*np.log10(x)
@@ -65,6 +65,14 @@ la = np.arctan2(Pm[2], np.hypot(Pm[0], Pm[1])*(1-geolocate.WGS84_E2)); lo = np.a
 HD = np.arctan2(Vm @ np.array([-np.sin(lo), np.cos(lo), 0]),
                 Vm @ np.array([-np.sin(la)*np.cos(lo), -np.sin(la)*np.sin(lo), np.cos(la)]))
 g = np.load(GEOFILE); rows = g['rows']; cols = g['cols']; az = g['az']; rg0 = g['rg']
+if not os.environ.get('RTC_NO_TIMEFIX'):   # the facet file was geolocated with the integer-ms stamps of lines 0 and NA-1; re-map to fitted line times
+    tf_fit, te_fit, _dt = img_file.read_line_times_fit(IMG, NR, NA)
+    az = ((tf + az*(te - tf)/(NA - 1)) - tf_fit)/(te_fit - tf_fit)*(NA - 1)
+    print('[time] line-time origin %.7f s (stamp %.3f s): azimuth shift %+.3f lines' % (tf_fit, tf, -(tf_fit - tf)/_dt))
+    tf, te = tf_fit, te_fit
+AZ_SHIFT = float(os.environ.get('RTC_AZ_SHIFT', 0.0))   # constant azimuth offset (lines) added to every facet: timing-error / sensitivity test
+if AZ_SHIFT:
+    az = az + AZ_SHIFT; print('[az] constant azimuth shift %+.3f lines applied to all facets' % AZ_SHIFT)
 coef = leader_file.read_six_coefficients(LED)
 if GEOID_N:
     _d = -float(GEOID_N)*np.cos(geometry.compute_theta_ih(coef, (R0 + rg0*DR)/1000.0))/DR
@@ -198,6 +206,28 @@ if not os.environ.get('RTC_ONLY_T6'):
          'Eq14 sigma0 n=0': R['sB'], 'Eq14 gamma0 n=0.5': R['sB']/np.sqrt(R['cB']), 'Eq14 gamma0 n=1': R['sB']/R['cB']}
     cb, ctl, cinc, C = cells(R, S)
     F = table('[main] HV, CCI 2010, plan A = Eq. 14 (expected: unc 0.564, current 0.622, n=0.5 0.667)', cb, ctl, C)
+    if os.environ.get('RTC_GEOCHK'):   # geolocation check: correlate ASF RTC (geocoded, independent) with our radar image at each facet, over integer offsets
+        from rasterio.warp import transform as wtf
+        AD = '/mnt/c/grd file/AP_23763_FBD_F0880_RT1/AP_23763_FBD_F0880_RT1/AP_23763_FBD_F0880_RT1'
+        ah = rasterio.open(AD + '_HV.tif'); AV = ah.read(1); LS = rasterio.open(AD + '.ls_map.tif').read(1)
+        ex, ny = wtf('EPSG:4326', ah.crs, (LON_LEFT + cols/PPD).tolist(), (LAT_TOP - rows/PPD).tolist())
+        ai = ((np.array(ny) - ah.transform.f)/ah.transform.e).astype(int); aj = ((np.array(ex) - ah.transform.c)/ah.transform.a).astype(int)
+        okA = (ai >= 0) & (ai < AV.shape[0]) & (aj >= 0) & (aj < AV.shape[1]); vA = np.zeros(len(rows))
+        vA[okA] = np.where(LS[ai[okA], aj[okA]] == 1, AV[ai[okA], aj[okA]], 0.0); okA &= vA > 0; lv = np.log(vA[okA])
+        Sm = np.log(np.maximum(uniform_filter(np.asarray(bs, dtype=np.float32), (9, 3)), 1e-6)); azo = az[okA]
+        for name, rgv in (('no geoid correction (GLO-30 heights used as ellipsoidal)', np.asarray(g['rg'])[okA]), ('with geoid correction N = %s m' % GEOID_N, rg0[okA])):
+            C = {}
+            for da in range(-8, 9, 2):
+                ia = np.clip(np.round(azo).astype(int) + da, 0, NA-1)
+                for dr in range(-6, 7):
+                    C[(da, dr)] = np.corrcoef(lv, Sm[ia, np.clip(np.round(rgv).astype(int) + dr, 0, NR-1)])[0, 1]
+            (ba, br_), cb = max(C.items(), key=lambda kv: kv[1])
+            par = lambda m, c0, p: 0.5*(m - p)/(m - 2*c0 + p) if (m - 2*c0 + p) != 0 else 0.0
+            fr = br_ + (par(C[(ba, br_-1)], cb, C[(ba, br_+1)]) if abs(br_) < 6 else 0.0)
+            fa = ba + (2*par(C[(ba-2, br_)], cb, C[(ba+2, br_)]) if abs(ba) < 8 else 0.0)
+            say('[GEOCHK] %s: %d facets; best offset azimuth %+d lines (sub-px %+.2f), range %+d px (sub-px %+.2f, %+.1f m slant); r = %.4f; r at (0,0) = %.4f' % (name, okA.sum(), ba, fa, br_, fr, fr*DR, cb, C[(0, 0)]))
+            say('          r vs range offset at best azimuth: ' + ' '.join('%+d:%.4f' % (d, C[(ba, d)]) for d in range(-6, 7)))
+        raise SystemExit
     if os.environ.get('RTC_OVS'):   # baseline: per-pixel RTC on K x K subdivided (planar-oversampled) facets, then window mean
         K = int(os.environ.get('RTC_OVS')); nF = len(rows); tlF = R['tl']
         idx = np.full((rows.max() + 2, cols.max() + 2), -1, np.int64); idx[rows, cols] = np.arange(nF)

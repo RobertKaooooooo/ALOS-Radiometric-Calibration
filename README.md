@@ -75,6 +75,10 @@ product (cells of 8 lines x 2 range pixels for ALPSRP237630880):
 | Scene | Azimuth offset | Range offset |
 |---|---|---|
 | ALPSRP237630880 (2010-07-11, FBD) | 0 lines | 0 to +4 range pixels |
+
+These offsets were measured before the geoid and line-time fixes on coarse
+cells. The per-facet check in `analysis/final_eq14.py` (`RTC_GEOCHK`) is
+documented in docs/analysis.md.
 | ALPSRP049750870 (2006-12-31, FBS) | +8 lines | +4 range pixels |
 
 ## Repository structure
@@ -114,12 +118,20 @@ included.
    too low; replaced by cubic Hermite interpolation.
 6. Zero-Doppler geometry assumed; L1.1 is focused to fd = a + b*R.
 7. Aspect via arctan2 instead of atan(q/p), reversing 47.5% of facet normals.
+8. Line-time origin taken from the integer-millisecond stamp of the first line
+   (rounded); the true origin, from a fit over all lines, is 0.43 ms later,
+   i.e. azimuth coordinates were about 0.93 line too large. Fixed with
+   img_file.read_line_times_fit().
 
 ## Known limitations (not yet addressed)
 
 - GLO-30 heights are EGM2008 geoid heights. The `alos_rtc` package still uses them
   as ellipsoidal heights; the analysis scripts apply a constant EGM2008 undulation
   (N = -27.32 m at the scene centre) through `RTC_GEOID_SHIFT` (see docs/analysis.md).
+- After fixes 1-8, a per-facet comparison with the ASF RTC product leaves a
+  residual azimuth offset of about +4 lines (about 13 m); ESA CCI AGB favours
+  the same direction. The cause is not identified; no empirical offset is
+  applied. The range residual is 0.04 pixel after the geoid correction.
 - The UAVSAR antenna-pattern term (antcor) is not applied.
 - The vegetation-table branch of uavsar_calib.cpp (cos_flag) is not ported.
 - DEM latitude spacing uses 111320 m per degree instead of ellipsoid radii.

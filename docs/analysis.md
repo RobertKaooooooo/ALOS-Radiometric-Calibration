@@ -64,6 +64,9 @@ evaluated against CCI AGB on 100 m cells.
 | `RTC_SAME=1` | Same physical quantity before and after correction (sigma0, gamma0 n = 0.5, gamma0 n = 1); the uncorrected reference uses cos^n(theta_inc) | `final_eq14_SAME_log.txt` |
 | `RTC_ASF=1` | Benchmark against the ASF RTC product, sampled at the same facets and averaged to the same 100 m cells (layover/shadow pixels excluded with the ASF `ls_map`) | `final_eq14_ASF_log.txt` |
 | `RTC_ASF=1 RTC_BOOT=1` | Adds a spatial block bootstrap (5 km and 10 km blocks, 1000 resamples, paired) for r and r differences, and a 2-fold 5 km checkerboard cross-validation of the exponent n | `final_eq14_ASF_log.txt`, sections `[BOOT]` and `[CV]` |
+| `RTC_GEOCHK=1` | Geolocation check against the ASF product: correlation over azimuth/range offsets at every facet, with and without the geoid correction | `final_eq14_GEOCHK_log.txt` |
+| `RTC_AZ_SHIFT=<lines>` | Constant azimuth offset added to all facets (sensitivity test); log names get the prefix `az<value>_` | `az<value>_final_eq14_*_log.txt` |
+| `RTC_NO_TIMEFIX=1` | Use the integer-millisecond line-time origin (earlier results) | as above |
 | `RTC_OVS=K` | Baseline: per-pixel correction on DEM facets subdivided K x K (planar oversampling), then window mean; compared with window integration on identical cells | `final_eq14_OVS_log.txt` |
 | `RTC_ONLY_T6=1` | Geoid lookup only (T6) | `final_eq14_T6_log.txt` |
 | `RTC_POSTER=1`, `RTC_FIGS_ONLY=1` | Poster figure variants | `final_eq14_log.txt` |
@@ -98,21 +101,34 @@ on the author's laptop.
 
 ## Results used in the thesis (HV, program output)
 
-Window integration, gamma0 n = 0.5, versus CCI AGB 2010, 561,758 cells of 100 m
-(`final_eq14_SAME_log.txt`):
+All results below use the EGM2008 undulation (N = -27.32 m) and the fitted
+line-time origin (`img_file.read_line_times_fit`, default since 2026-11-16;
+`RTC_NO_TIMEFIX=1` reproduces the earlier integer-millisecond origin, whose
+logs are kept in `scripts/out_ellip_v1/`).
+
+Same quantity before and after correction, versus CCI AGB 2010, 561,785 cells
+of 100 m (`final_eq14_SAME_log.txt`), r / RMSE (dB):
 
 | Quantity | Uncorrected | Per-pixel RTC | Window integration |
 |---|---|---|---|
-| sigma0 (n = 0), r / RMSE (dB) | 0.551 / 1.410 | 0.643 / 1.011 | 0.681 / 0.876 |
-| gamma0 n = 0.5, r / RMSE (dB) | 0.551 / 1.409 | 0.660 / 0.963 | 0.702 / 0.824 |
-| gamma0 n = 1, r / RMSE (dB) | 0.550 / 1.408 | 0.649 / 0.988 | 0.686 / 0.858 |
+| sigma0 (n = 0) | 0.549 / 1.412 | 0.641 / 1.016 | 0.679 / 0.880 |
+| gamma0 n = 0.5 | 0.549 / 1.411 | 0.658 / 0.967 | 0.699 / 0.828 |
+| gamma0 n = 1 | 0.549 / 1.411 | 0.646 / 0.993 | 0.683 / 0.861 |
 
-Benchmark and statistics (`final_eq14_ASF_log.txt`, 555,154 cells): ASF RTC
-gamma0, cell average, r = 0.670 [0.654, 0.686]; window integration gamma0 n = 1,
-r = 0.686 [0.669, 0.703] (95 % CI, 10 km blocks). Both cross-validation folds
-select n = 0.5.
+Benchmark (`final_eq14_ASF_log.txt`, 555,176 cells, 95 % CI from 10 km blocks):
+ASF RTC gamma0, cell average, r = 0.670 [0.654, 0.686]; window integration
+gamma0 n = 1, r = 0.684 [0.667, 0.701]; paired difference +0.014
+[+0.009, +0.019]. Both cross-validation folds select n = 0.5 (test r 0.693 and
+0.706).
 
-Convergence of the oversampled per-pixel baseline (`final_eq14_OVS_K8_log.txt`, `final_eq14_OVS_K16_log.txt`; the K = 4 values were taken from the terminal output and its log still has to be saved by re-running):
-K = 4 is biased by about 2 dB (median sigma0 -10.39 dB); K = 8 and K = 16 agree
-with window integration (median -12.44 dB, identical r). The two implementations
-are therefore equivalent in accuracy once the facets are dense enough.
+Convergence (`final_eq14_OVS_K4_log.txt`, `final_eq14_OVS_K8_log.txt`): K = 4
+is biased by about 2 dB (median sigma0 -10.38 dB versus -12.44 dB); K = 8
+agrees with window integration (r 0.700 versus 0.699 for gamma0 n = 0.5).
+K = 16 was run before the line-time fix (`out_ellip_v1`) and agrees with K = 8.
+
+Geolocation (`final_eq14_GEOCHK_log.txt`): per-facet correlation with the ASF
+product gives a range offset of +2.32 pixels without and +0.04 pixel with the
+geoid correction, and an azimuth offset of +4.17 lines (about 13 m), whose
+cause is not identified. Shifting all facets by -0.93, 0 and +3.3 lines
+(relative to the earlier origin) changes r (gamma0 n = 0.5) to 0.699, 0.702
+and 0.706; the ranking of the methods is unchanged.
