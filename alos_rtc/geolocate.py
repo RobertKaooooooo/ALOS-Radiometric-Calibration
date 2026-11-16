@@ -31,9 +31,10 @@ img_file.read_line_times_fit(), not from the integer-millisecond stamps of
 the first and last line, which are rounded and put the azimuth origin about
 0.93 line off for ALPSRP237630880. A finer check against the ASF product
 (per-facet correlation, see analysis/final_eq14.py RTC_GEOCHK) still shows a
-residual of about +4 azimuth lines (about 13 m) after this fix, whose cause
-is not yet identified; the range residual is 0.04 pixel after the geoid
-correction.
+constant residual of +4.17 azimuth lines (about 13 m) after this fix,
+uniform over the image; analysis/final_eq14.py applies it as an empirical
+timing calibration (RTC_AZ_SHIFT). This function applies no empirical
+offset. The range residual is 0.04 pixel after the geoid correction.
 """
 
 import numpy as np

@@ -70,7 +70,7 @@ if not os.environ.get('RTC_NO_TIMEFIX'):   # the facet file was geolocated with 
     az = ((tf + az*(te - tf)/(NA - 1)) - tf_fit)/(te_fit - tf_fit)*(NA - 1)
     print('[time] line-time origin %.7f s (stamp %.3f s): azimuth shift %+.3f lines' % (tf_fit, tf, -(tf_fit - tf)/_dt))
     tf, te = tf_fit, te_fit
-AZ_SHIFT = float(os.environ.get('RTC_AZ_SHIFT', 0.0))   # constant azimuth offset (lines) added to every facet: timing-error / sensitivity test
+AZ_SHIFT = float(os.environ.get('RTC_AZ_SHIFT', 4.17))   # azimuth timing calibration (lines): +4.17 estimated vs ASF RT1 via GEOCHK cross-correlation, uniform across 3x3 image blocks (4.11-4.24); set RTC_AZ_SHIFT=0 to disable
 if AZ_SHIFT:
     az = az + AZ_SHIFT; print('[az] constant azimuth shift %+.3f lines applied to all facets' % AZ_SHIFT)
 coef = leader_file.read_six_coefficients(LED)
@@ -227,6 +227,17 @@ if not os.environ.get('RTC_ONLY_T6'):
             fa = ba + (2*par(C[(ba-2, br_)], cb, C[(ba+2, br_)]) if abs(ba) < 8 else 0.0)
             say('[GEOCHK] %s: %d facets; best offset azimuth %+d lines (sub-px %+.2f), range %+d px (sub-px %+.2f, %+.1f m slant); r = %.4f; r at (0,0) = %.4f' % (name, okA.sum(), ba, fa, br_, fr, fr*DR, cb, C[(0, 0)]))
             say('          r vs range offset at best azimuth: ' + ' '.join('%+d:%.4f' % (d, C[(ba, d)]) for d in range(-6, 7)))
+        rr = np.round(rgv).astype(int); aa = np.round(azo).astype(int)
+        qa = np.quantile(aa, [0, 1/3, 2/3, 1]); qr = np.quantile(rr, [0, 1/3, 2/3, 1])
+        for bi in range(3):
+            for bj in range(3):
+                m = (aa >= qa[bi]) & (aa <= qa[bi+1]) & (rr >= qr[bj]) & (rr <= qr[bj+1])
+                B = {}
+                for da2 in range(-8, 9):
+                    B[da2] = np.corrcoef(lv[m], Sm[np.clip(aa[m] + da2, 0, NA-1), np.clip(rr[m], 0, NR-1)])[0, 1]
+                bb = max(B, key=B.get)
+                fb = bb + (par(B[bb-1], B[bb], B[bb+1]) if abs(bb) < 8 else 0.0)
+                say('[GEOCHK3x3] %s: az-band %d, rg-band %d: %d facets; best az %+d (sub %+.2f); r = %.4f' % (name, bi, bj, m.sum(), bb, fb, B[bb]))
         raise SystemExit
     if os.environ.get('RTC_OVS'):   # baseline: per-pixel RTC on K x K subdivided (planar-oversampled) facets, then window mean
         K = int(os.environ.get('RTC_OVS')); nF = len(rows); tlF = R['tl']

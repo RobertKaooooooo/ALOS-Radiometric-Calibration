@@ -130,9 +130,17 @@ included.
   as ellipsoidal heights; the analysis scripts apply a constant EGM2008 undulation
   (N = -27.32 m at the scene centre) through `RTC_GEOID_SHIFT` (see docs/analysis.md).
 - After fixes 1-8, a per-facet comparison with the ASF RTC product leaves a
-  residual azimuth offset of about +4 lines (about 13 m); ESA CCI AGB favours
-  the same direction. The cause is not identified; no empirical offset is
-  applied. The range residual is 0.04 pixel after the geoid correction.
+  constant azimuth offset of +4.17 lines (1.94 ms, about 13 m, within the
+  9.7 m RMS strip-mode accuracy reported by Shimada et al. 2009,
+  doi:10.1109/TGRS.2009.2023909). It is uniform over a 3 x 3 split of the
+  image (+4.11 to +4.24 lines) and does not vary with range, which rules out
+  the Doppler range term and the geoid; its exact cause (about 1 Hz in the
+  Doppler centroid, or a fixed offset in the line-time definition) cannot be
+  separated with one scene. `analysis/final_eq14.py` applies it as an
+  empirical timing calibration (`RTC_AZ_SHIFT`, default 4.17; `RTC_AZ_SHIFT=0`
+  disables it); after it the residual is below 0.1 line in all nine blocks.
+  The `alos_rtc` package itself applies no empirical offset. The range
+  residual is 0.04 pixel after the geoid correction.
 - The UAVSAR antenna-pattern term (antcor) is not applied.
 - The vegetation-table branch of uavsar_calib.cpp (cos_flag) is not ported.
 - DEM latitude spacing uses 111320 m per degree instead of ellipsoid radii.
