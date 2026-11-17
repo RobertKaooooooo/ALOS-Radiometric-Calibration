@@ -55,7 +55,7 @@ WA, WR = 31, 7
 INC_MIN, INC_MAX = 15.0, 70.0
 GEOID_N = os.environ.get('RTC_GEOID_SHIFT')   # EGM2008 undulation (m): heights -> ellipsoid, range shift -N*cos(theta_inc)/DR
 OUT = os.path.join(BASE, 'scripts', ('out_ellip' if GEOID_N else 'out') + ('' if SID == REF_SID else '_' + SID)); os.makedirs(OUT, exist_ok=True)
-LOG = open(os.path.join(OUT, ('az%+.2f_' % float(os.environ['RTC_AZ_SHIFT']) if os.environ.get('RTC_AZ_SHIFT') else '') + ('final_eq14_GEOCHK_log.txt' if os.environ.get('RTC_GEOCHK') else 'final_eq14_VARIO_log.txt' if os.environ.get('RTC_VARIO') else 'final_eq14_OVS_log.txt' if os.environ.get('RTC_OVS') else 'final_eq14_ASF_log.txt' if os.environ.get('RTC_ASF') else 'final_eq14_SAME_log.txt' if os.environ.get('RTC_SAME') else 'final_eq14_T6_log.txt' if os.environ.get('RTC_ONLY_T6') else 'final_eq14_FIGS_log.txt' if os.environ.get('RTC_FIGS_ONLY') else 'final_eq14_log.txt')), 'w')
+LOG = open(os.path.join(OUT, ('az%+.2f_' % float(os.environ['RTC_AZ_SHIFT']) if os.environ.get('RTC_AZ_SHIFT') else '') + ('final_eq14_A7_log.txt' if os.environ.get('RTC_A7') else 'final_eq14_GEOCHK_log.txt' if os.environ.get('RTC_GEOCHK') else 'final_eq14_VARIO_log.txt' if os.environ.get('RTC_VARIO') else 'final_eq14_OVS_log.txt' if os.environ.get('RTC_OVS') else 'final_eq14_ASF_log.txt' if os.environ.get('RTC_ASF') else 'final_eq14_SAME_log.txt' if os.environ.get('RTC_SAME') else 'final_eq14_T6_log.txt' if os.environ.get('RTC_ONLY_T6') else 'final_eq14_FIGS_log.txt' if os.environ.get('RTC_FIGS_ONLY') else 'final_eq14_log.txt')), 'w')
 def say(s):
     print(s); LOG.write(s + '\n'); LOG.flush()
 db = lambda x: 10*np.log10(x)
@@ -334,6 +334,12 @@ if not os.environ.get('RTC_ONLY_T6'):
         for n_, lab, pp in [(0, 'sigma0, area term only (n = 0)', R['s_old']), (0.5, 'gamma0, n = 0.5', R['h_old']), (1, 'gamma0, n = 1', R['g_old'])]:
             S2 = {'uncorrected / cos^n(theta_inc)': R['u_all']/ct**n_, 'per-pixel RTC': pp, 'window integration': R['sB']/R['cB']**n_}
             cb2, ctl2, _, C2 = cells(R, S2)
+            if os.environ.get('RTC_A7') and n_ == 0.5:   # A7: dump cell-level dB of the three methods (gamma0, n = 0.5) for the AGB-saturation analysis in agb_sat_a7.py
+                table('[A7] HV, gamma0 n = 0.5, cells written for agb_sat_a7.py (must equal the [SAME] n = 0.5 table)', cb2, ctl2, C2)
+                fn = os.path.join(OUT, 'a7_cells.npz')
+                np.savez(fn, key=cells.key, agb=cb2, tl=ctl2, names=np.array(list(C2.keys())), Y=np.stack([C2[nm] for nm in C2]),
+                         ncol=BIO.shape[1], tr=np.array([Tr.a, Tr.b, Tr.c, Tr.d, Tr.e, Tr.f]))
+                say('[A7] wrote %s: %d cells' % (fn, len(cb2))); LOG.close(); sys.exit(0)
             rows_.append((n_, cb2, C2, table('[SAME] HV, same quantity in all methods: ' + lab, cb2, ctl2, C2)))
         # figure: rows = quantity, columns = method, same 6000 cells in every panel
         RL = {0: '$\\sigma^0$ (area term only, $n$ = 0)', 0.5: '$\\gamma^0$, $n$ = 0.5', 1: '$\\gamma^0$, $n$ = 1'}
