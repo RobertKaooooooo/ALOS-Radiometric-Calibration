@@ -73,12 +73,20 @@ la = np.arctan2(Pm[2], np.hypot(Pm[0], Pm[1])*(1-geolocate.WGS84_E2)); lo = np.a
 HD = np.arctan2(Vm @ np.array([-np.sin(lo), np.cos(lo), 0]),
                 Vm @ np.array([-np.sin(la)*np.cos(lo), -np.sin(la)*np.sin(lo), np.cos(la)]))
 g = np.load(GEOFILE); rows = g['rows']; cols = g['cols']; az = g['az']; rg = g['rg']
+if not os.environ.get('RTC_NO_TIMEFIX'):   # fitted line-time origin, identical to final_eq14.py
+    tf_fit, te_fit, _dt = img_file.read_line_times_fit(IMG, NR, NA)
+    az = ((tf + az*(te - tf)/(NA - 1)) - tf_fit)/(te_fit - tf_fit)*(NA - 1)
+    say('[time] line-time origin %.7f s (stamp %.3f s): azimuth shift %+.3f lines' % (tf_fit, tf, -(tf_fit - tf)/_dt))
+    tf, te = tf_fit, te_fit
+AZ_SHIFT = float(os.environ.get('RTC_AZ_SHIFT', 4.17))   # azimuth timing calibration, identical to final_eq14.py; RTC_AZ_SHIFT=0 disables
+if AZ_SHIFT:
+    az = az + AZ_SHIFT; say('[az] constant azimuth shift %+.3f lines applied to all facets' % AZ_SHIFT)
 dem = np.fromfile(DEMFILE, dtype=np.float32).reshape(7200, 7200)
 coef = leader_file.read_six_coefficients(LED)
 if GEOID_N:
     _d = -float(GEOID_N)*np.cos(geometry.compute_theta_ih(coef, (R0 + rg*DR)/1000.0))/DR
     rg = rg + _d
-    print('[geoid] N = %+.2f m -> range shift %+.2f to %+.2f px; outputs in %s' % (float(GEOID_N), _d.min(), _d.max(), OUT)); del _d
+    say('[geoid] N = %+.2f m -> range shift %+.2f to %+.2f px; outputs in %s' % (float(GEOID_N), _d.min(), _d.max(), OUT)); del _d
 th = geometry.compute_theta_ih(coef, (R0 + rg*DR)/1000.0)
 th_col = geometry.compute_theta_ih(coef, (R0 + np.arange(NR)*DR)/1000.0)
 tt = tf + az/(NA-1)*(te-tf)
@@ -167,9 +175,9 @@ for lo_, hi_ in [(15, 25), (25, 35), (35, 45), (45, 55), (55, 70)]:
 if os.environ.get('RTC_FIG4M2'):
     import glob as _g
     from matplotlib import font_manager as _fm
-    for _f in _g.glob(os.path.expanduser('~/.fonts/*.tt[fc]')): _fm.fontManager.addfont(_f)
-    plt.rcParams.update({'font.family': ['TASA Explorer', 'DejaVu Sans'], 'mathtext.fontset': 'custom', 'mathtext.rm': 'Cambria',
-                         'mathtext.it': 'Cambria:italic', 'mathtext.bf': 'Cambria:bold', 'mathtext.fallback': 'cm'})
+    for _f in _g.glob('/mnt/c/Windows/Fonts/times*.ttf'): _fm.fontManager.addfont(_f)
+    plt.rcParams.update({'font.family': ['Times New Roman', 'DejaVu Serif'], 'mathtext.fontset': 'stix', 'font.size': 10,
+                         'axes.titlesize': 10.5, 'axes.labelsize': 10, 'legend.fontsize': 8.5})
     NPX = WA*WR
     A_int = A_W[okW]/NPX
     A_hpa = (A_flat/cur_afac_W)[okW]/NPX
@@ -190,22 +198,22 @@ if os.environ.get('RTC_FIG4M2'):
             cen.append((lo_+hi_)/2); mh.append(np.median(d_hpa[m])); me.append(np.median(d_e5[m]))
             qh.append(np.percentile(d_hpa[m], [25, 75])); qe.append(np.percentile(d_e5[m], [25, 75]))
             say('      %2d-%2d deg  n %6d  projection angle %+.2f   Eq.5 %+.2f' % (lo_, hi_, m.sum(), mh[-1], me[-1]))
-    fig, axs = plt.subplots(1, 2, figsize=(14, 5.2))
+    fig, axs = plt.subplots(1, 2, figsize=(11, 4))
     a = axs[0]; hb = np.arange(-20, 20.01, 0.25)
     for dd, c, lab in [(d_hpa, '#d62728', 'Projection angle (current code)'), (d_e5, '#1f77b4', 'Local incidence angle, Eq. (5)')]:
         a.hist(dd, hb, density=True, histtype='step', lw=2, color=c, label='%s: median %+.2f m$^2$' % (lab, np.median(dd)))
     a.axvline(0, color='k', lw=0.8); a.set_xlim(-20, 20)
     a.set_xlabel('Area difference, integration minus method (m$^2$ per radar pixel)'); a.set_ylabel('Density')
-    a.set_title('(a) Distribution, %d windows of 31 $\\times$ 7 pixels' % okW.sum(), loc='left')
-    a.legend(frameon=False, fontsize=11)
+    a.set_title('(a) Distribution over %d windows of 31 $\\times$ 7 pixels' % okW.sum(), loc='left')
+    a.legend(frameon=False)
     a = axs[1]; cen = np.array(cen)
     for med, q, c, lab in [(mh, qh, '#d62728', 'Projection angle (current code)'), (me, qe, '#1f77b4', 'Local incidence angle, Eq. (5)')]:
         q = np.array(q); a.fill_between(cen, q[:, 0], q[:, 1], color=c, alpha=0.18, lw=0); a.plot(cen, med, 'o-', color=c, lw=2, label=lab + ' (median, 25$-$75%)')
     a.axhline(0, color='k', lw=0.8); a.set_xlabel('Window mean local incidence angle $\\theta_{loc}$ ($\\degree$)')
     a.set_ylabel('Area difference (m$^2$ per radar pixel)'); a.set_title('(b) Difference versus local incidence angle', loc='left')
-    a.legend(frameon=False, fontsize=11)
-    plt.tight_layout(); plt.savefig(os.path.join(OUT, 'fig4_area_m2.png'), dpi=220, facecolor='white'); plt.close()
-    say('\n[saved] fig4_area_m2.png, fig4_m2_log.txt in %s' % OUT); LOG.close(); sys.exit(0)
+    a.legend(frameon=False)
+    plt.tight_layout(); plt.savefig(os.path.join(OUT, 'thesis_area_methods.png'), dpi=220, facecolor='white', bbox_inches='tight'); plt.close()
+    say('\n[saved] thesis_area_methods.png, fig4_m2_log.txt in %s' % OUT); LOG.close(); sys.exit(0)
 
 # ---------------- sample at facets, 100 m cells ----------------
 wa_c = np.clip(wa, 0, nwa-1); wr_c = np.clip(wr, 0, nwr-1)

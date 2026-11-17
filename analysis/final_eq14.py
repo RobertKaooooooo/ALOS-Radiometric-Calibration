@@ -36,20 +36,25 @@ plt.rcParams.update({'font.family': ['Times New Roman', 'DejaVu Serif'], 'mathte
                      'mathtext.it': 'Cambria:italic', 'mathtext.bf': 'Cambria:bold', 'mathtext.fallback': 'cm'})
 _SFX = '_thesis' if _TH else ''
 
-D    = os.path.join(BASE, 'ALPSRP237630880-L1.1') + '/'
-SID  = 'ALPSRP237630880'
+REF_SID = 'ALPSRP237630880'                                        # reference scene of the thesis
+SID  = os.environ.get('RTC_SID', REF_SID)                          # RTC_SID=<scene>: any other FBD L1.1 scene prepared by prepare_scene.py
+D    = os.path.join(BASE, SID + '-L1.1') + '/'
 LED  = D + 'LED-' + SID + '-H1.1__A'
 IMG  = D + 'IMG-HH-' + SID + '-H1.1__A'
-NA, NR = int(os.environ.get('RTC_NA', 18432)), int(os.environ.get('RTC_NR', 4704))
-BSFILE  = os.path.join(BASE, 'ALOS_HV_uncorrected_new.bin')
-GEOFILE = os.path.join(BASE, 'facet_results_FINAL2.npz')
+_rl = int(open(IMG, 'rb').read(720)[186:192])                     # record length (file descriptor bytes 187-192)
+NA, NR = (os.path.getsize(IMG) - 720)//_rl, (_rl - 412)//8
+BSFILE  = os.path.join(BASE, 'ALOS_HV_uncorrected_new.bin' if SID == REF_SID else 'ALOS_HV_%s.bin' % SID)
+HHGLOB  = os.path.join(BASE, 'ALOS_HH_uncorrected*.bin' if SID == REF_SID else 'ALOS_HH_%s.bin' % SID)
+GEOFILE = os.path.join(BASE, 'facet_results_FINAL2.npz' if SID == REF_SID else 'facets_%s.npz' % SID)
+ASFDIR  = 'AP_%s_FBD_F%s_RT1' % (SID[6:11], SID[11:15])                 # ALPSRP18395 0880 -> AP_18395_FBD_F0880_RT1
+ASF     = os.path.join(BASE, ASFDIR, ASFDIR, ASFDIR)
 DEMFILE = os.path.join(BASE, 'GLO30_ALOS_merged.bin')
 CCIFILE = os.path.join(BASE, 'N50W080_ESACCI-BIOMASS-L4-AGB-MERGED-100m-2010-fv7.0.tif')
 PPD, LAT_TOP, LON_LEFT = 3600, 45.0, -72.0
 WA, WR = 31, 7
 INC_MIN, INC_MAX = 15.0, 70.0
 GEOID_N = os.environ.get('RTC_GEOID_SHIFT')   # EGM2008 undulation (m): heights -> ellipsoid, range shift -N*cos(theta_inc)/DR
-OUT = os.path.join(BASE, 'scripts', 'out_ellip' if GEOID_N else 'out'); os.makedirs(OUT, exist_ok=True)
+OUT = os.path.join(BASE, 'scripts', ('out_ellip' if GEOID_N else 'out') + ('' if SID == REF_SID else '_' + SID)); os.makedirs(OUT, exist_ok=True)
 LOG = open(os.path.join(OUT, ('az%+.2f_' % float(os.environ['RTC_AZ_SHIFT']) if os.environ.get('RTC_AZ_SHIFT') else '') + ('final_eq14_GEOCHK_log.txt' if os.environ.get('RTC_GEOCHK') else 'final_eq14_OVS_log.txt' if os.environ.get('RTC_OVS') else 'final_eq14_ASF_log.txt' if os.environ.get('RTC_ASF') else 'final_eq14_SAME_log.txt' if os.environ.get('RTC_SAME') else 'final_eq14_T6_log.txt' if os.environ.get('RTC_ONLY_T6') else 'final_eq14_FIGS_log.txt' if os.environ.get('RTC_FIGS_ONLY') else 'final_eq14_log.txt')), 'w')
 def say(s):
     print(s); LOG.write(s + '\n'); LOG.flush()
@@ -73,7 +78,7 @@ if not os.environ.get('RTC_NO_TIMEFIX'):   # the facet file was geolocated with 
     az = ((tf + az*(te - tf)/(NA - 1)) - tf_fit)/(te_fit - tf_fit)*(NA - 1)
     say('[time] line-time origin %.7f s (stamp %.3f s): azimuth shift %+.3f lines' % (tf_fit, tf, -(tf_fit - tf)/_dt))
     tf, te = tf_fit, te_fit
-AZ_SHIFT = float(os.environ.get('RTC_AZ_SHIFT', 4.17))   # azimuth timing calibration (lines): +4.17 estimated vs ASF RT1 via GEOCHK cross-correlation, uniform across 3x3 image blocks (4.11-4.24); set RTC_AZ_SHIFT=0 to disable
+AZ_SHIFT = float(os.environ.get('RTC_AZ_SHIFT', 4.17 if SID == REF_SID else 0.0))   # the +4.17 calibration was estimated for the reference scene only   # azimuth timing calibration (lines): +4.17 estimated vs ASF RT1 via GEOCHK cross-correlation, uniform across 3x3 image blocks (4.11-4.24); set RTC_AZ_SHIFT=0 to disable
 if AZ_SHIFT:
     az = az + AZ_SHIFT; say('[az] constant azimuth shift %+.3f lines applied to all facets' % AZ_SHIFT)
 coef = leader_file.read_six_coefficients(LED)
@@ -211,7 +216,7 @@ if not os.environ.get('RTC_ONLY_T6'):
     F = table('[main] HV, CCI 2010, plan A = Eq. 14 (expected: unc 0.564, current 0.622, n=0.5 0.667)', cb, ctl, C)
     if os.environ.get('RTC_GEOCHK'):   # geolocation check: correlate ASF RTC (geocoded, independent) with our radar image at each facet, over integer offsets
         from rasterio.warp import transform as wtf
-        AD = '/mnt/c/grd file/AP_23763_FBD_F0880_RT1/AP_23763_FBD_F0880_RT1/AP_23763_FBD_F0880_RT1'
+        AD = ASF
         ah = rasterio.open(AD + '_HV.tif'); AV = ah.read(1); LS = rasterio.open(AD + '.ls_map.tif').read(1)
         ex, ny = wtf('EPSG:4326', ah.crs, (LON_LEFT + cols/PPD).tolist(), (LAT_TOP - rows/PPD).tolist())
         ai = ((np.array(ny) - ah.transform.f)/ah.transform.e).astype(int); aj = ((np.array(ex) - ah.transform.c)/ah.transform.a).astype(int)
@@ -273,7 +278,7 @@ if not os.environ.get('RTC_ONLY_T6'):
         raise SystemExit
     if os.environ.get('RTC_ASF'):   # benchmark: ASF RTC (GAMMA, area-based gamma0, 12.5 m) sampled at the same facets
         from rasterio.warp import transform as wtf
-        AD = '/mnt/c/grd file/AP_23763_FBD_F0880_RT1/AP_23763_FBD_F0880_RT1/AP_23763_FBD_F0880_RT1'
+        AD = ASF
         ah = rasterio.open(AD + '_HV.tif'); AV = ah.read(1); LS = rasterio.open(AD + '.ls_map.tif').read(1)
         flat_ = LAT_TOP - rows/PPD; flon_ = LON_LEFT + cols/PPD
         ex, ny = wtf('EPSG:4326', ah.crs, flon_.tolist(), flat_.tolist())
@@ -468,7 +473,7 @@ if not os.environ.get('RTC_ONLY_T6'):
     del R, S, C, F, CT, CL, SV, CVn; gc.collect()
 
     # ---- T5 HH ----
-    hh = sorted(glob.glob(os.path.join(BASE, 'ALOS_HH_uncorrected*.bin')))
+    hh = sorted(glob.glob(HHGLOB))
     if hh and os.path.getsize(hh[0]) == NA*NR*4:
         bsH = np.asarray(np.memmap(hh[0], dtype=np.float32, mode='r', shape=(NA, NR)))
         RH = run(rg0, bsH)
