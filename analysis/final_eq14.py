@@ -55,7 +55,7 @@ WA, WR = 31, 7
 INC_MIN, INC_MAX = 15.0, 70.0
 GEOID_N = os.environ.get('RTC_GEOID_SHIFT')   # EGM2008 undulation (m): heights -> ellipsoid, range shift -N*cos(theta_inc)/DR
 OUT = os.path.join(BASE, 'scripts', ('out_ellip' if GEOID_N else 'out') + ('' if SID == REF_SID else '_' + SID)); os.makedirs(OUT, exist_ok=True)
-LOG = open(os.path.join(OUT, ('az%+.2f_' % float(os.environ['RTC_AZ_SHIFT']) if os.environ.get('RTC_AZ_SHIFT') else '') + ('final_eq14_GEOCHK_log.txt' if os.environ.get('RTC_GEOCHK') else 'final_eq14_OVS_log.txt' if os.environ.get('RTC_OVS') else 'final_eq14_ASF_log.txt' if os.environ.get('RTC_ASF') else 'final_eq14_SAME_log.txt' if os.environ.get('RTC_SAME') else 'final_eq14_T6_log.txt' if os.environ.get('RTC_ONLY_T6') else 'final_eq14_FIGS_log.txt' if os.environ.get('RTC_FIGS_ONLY') else 'final_eq14_log.txt')), 'w')
+LOG = open(os.path.join(OUT, ('az%+.2f_' % float(os.environ['RTC_AZ_SHIFT']) if os.environ.get('RTC_AZ_SHIFT') else '') + ('final_eq14_GEOCHK_log.txt' if os.environ.get('RTC_GEOCHK') else 'final_eq14_VARIO_log.txt' if os.environ.get('RTC_VARIO') else 'final_eq14_OVS_log.txt' if os.environ.get('RTC_OVS') else 'final_eq14_ASF_log.txt' if os.environ.get('RTC_ASF') else 'final_eq14_SAME_log.txt' if os.environ.get('RTC_SAME') else 'final_eq14_T6_log.txt' if os.environ.get('RTC_ONLY_T6') else 'final_eq14_FIGS_log.txt' if os.environ.get('RTC_FIGS_ONLY') else 'final_eq14_log.txt')), 'w')
 def say(s):
     print(s); LOG.write(s + '\n'); LOG.flush()
 db = lambda x: 10*np.log10(x)
@@ -212,7 +212,7 @@ if not os.environ.get('RTC_ONLY_T6'):
     R = run(rg0, bs, extra=True)
     S = {'uncorrected sigma0': R['u_all'], 'current code gamma0': R['g_old'],
          'Eq14 sigma0 n=0': R['sB'], 'Eq14 gamma0 n=0.5': R['sB']/np.sqrt(R['cB']), 'Eq14 gamma0 n=1': R['sB']/R['cB']}
-    cb, ctl, cinc, C = cells(R, S)
+    cb, ctl, cinc, C = cells(R, S); key_main = cells.key
     F = table('[main] HV, CCI 2010, plan A = Eq. 14 (expected: unc 0.564, current 0.622, n=0.5 0.667)', cb, ctl, C)
     if os.environ.get('RTC_GEOCHK'):   # geolocation check: correlate ASF RTC (geocoded, independent) with our radar image at each facet, over integer offsets
         from rasterio.warp import transform as wtf
@@ -299,6 +299,13 @@ if not os.environ.get('RTC_ONLY_T6'):
               'ASF RTC gamma0 (GAMMA)': asf, 'ASF RTC gamma0, cell average': asf_c}
         cbA, ctlA, _, CA = cells(R, SA)
         table('[ASF benchmark] HV, CCI 2010, identical cells and facets', cbA, ctlA, CA)
+        if os.environ.get('RTC_VARIO'):   # A6: dump cell-level dB values (main and ASF-benchmark cell sets) for the residual variogram in vario_a6.py
+            fn = os.path.join(OUT, 'vario_cells.npz')
+            np.savez(fn, key_main=key_main, agb_main=cb, tl_main=ctl, y_main=C['Eq14 gamma0 n=0.5'],
+                     key_asf=cells.key, agb_asf=cbA, tl_asf=ctlA, names_asf=np.array(list(CA.keys())), Y_asf=np.stack([CA[nm] for nm in CA]),
+                     ncol=BIO.shape[1], tr=np.array([Tr.a, Tr.b, Tr.c, Tr.d, Tr.e, Tr.f]))
+            say('[VARIO] wrote %s: main %d cells, ASF benchmark %d cells' % (fn, len(cb), len(cbA)))
+            raise SystemExit
         if os.environ.get('RTC_BOOT'):   # spatial block bootstrap (95% CI) and spatial cross-validation of n
             key = cells.key; ncol = BIO.shape[1]; rng = np.random.default_rng(0); x = cbA; names = list(CA.keys())
             rr = lambda S: (lambda n, sx, sy, sxx, syy, sxy: (n*sxy - sx*sy)/np.sqrt((n*sxx - sx**2)*(n*syy - sy**2)))(*S.T)
