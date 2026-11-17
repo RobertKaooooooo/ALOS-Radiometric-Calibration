@@ -50,7 +50,7 @@ WA, WR = 31, 7
 INC_MIN, INC_MAX = 15.0, 70.0
 GEOID_N = os.environ.get('RTC_GEOID_SHIFT')   # EGM2008 undulation (m): heights -> ellipsoid, range shift -N*cos(theta_inc)/DR
 OUT = os.path.join(BASE, 'scripts', 'out_ellip' if GEOID_N else 'out'); os.makedirs(OUT, exist_ok=True)
-LOG = open(os.path.join(OUT, ('az%+.2f_' % float(os.environ['RTC_AZ_SHIFT']) if os.environ.get('RTC_AZ_SHIFT') else '') + ('final_eq14_GEOCHK_log.txt' if os.environ.get('RTC_GEOCHK') else 'final_eq14_OVS_log.txt' if os.environ.get('RTC_OVS') else 'final_eq14_ASF_log.txt' if os.environ.get('RTC_ASF') else 'final_eq14_SAME_log.txt' if os.environ.get('RTC_SAME') else 'final_eq14_T6_log.txt' if os.environ.get('RTC_ONLY_T6') else 'final_eq14_log.txt')), 'w')
+LOG = open(os.path.join(OUT, ('az%+.2f_' % float(os.environ['RTC_AZ_SHIFT']) if os.environ.get('RTC_AZ_SHIFT') else '') + ('final_eq14_GEOCHK_log.txt' if os.environ.get('RTC_GEOCHK') else 'final_eq14_OVS_log.txt' if os.environ.get('RTC_OVS') else 'final_eq14_ASF_log.txt' if os.environ.get('RTC_ASF') else 'final_eq14_SAME_log.txt' if os.environ.get('RTC_SAME') else 'final_eq14_T6_log.txt' if os.environ.get('RTC_ONLY_T6') else 'final_eq14_FIGS_log.txt' if os.environ.get('RTC_FIGS_ONLY') else 'final_eq14_log.txt')), 'w')
 def say(s):
     print(s); LOG.write(s + '\n'); LOG.flush()
 db = lambda x: 10*np.log10(x)
