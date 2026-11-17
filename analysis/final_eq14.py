@@ -459,7 +459,13 @@ if not os.environ.get('RTC_ONLY_T6'):
     cbL, ctlL, _, CL = cells(R, {'current code gamma0': R['g_old'], 'current code, layover px removed': R['g_nl'],
                                  'Eq14 n=0.5': R['sB']/np.sqrt(R['cB']), 'Eq14 n=0.5, layover windows removed': R['sB_nl']/np.sqrt(R['cB'])})
     table('[T4] effect of masking layover', cbL, ctlL, CL)
-    del R, S, C, F, CT, CL; gc.collect()
+    # ---- T5b HV: same n sweep as HH ----
+    SV = {'uncorrected sigma0': R['u_all']}
+    for n in (0.0, 0.25, 0.5, 0.75, 1.0):
+        SV['Eq14 n=%.2f' % n] = R['sB']/R['cB']**n
+    cbV, ctlV, _, CVn = cells(R, SV)
+    table('[T5b] HV: which n removes the angle trend?', cbV, ctlV, CVn)
+    del R, S, C, F, CT, CL, SV, CVn; gc.collect()
 
     # ---- T5 HH ----
     hh = sorted(glob.glob(os.path.join(BASE, 'ALOS_HH_uncorrected*.bin')))

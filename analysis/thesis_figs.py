@@ -226,19 +226,28 @@ cb = fig.colorbar(m, ax=a, pad=0.02, shrink=0.85); cb.set_label('Window area cor
 say('[corr map] window correction: median %+.2f dB, p5 %+.2f, p95 %+.2f' % tuple(np.nanpercentile(corrW, [50, 5, 95])))
 save(fig, 'thesis_correction_map.png')
 
-# ---------- new: HH n sweep from the main log ----------
+# ---------- new: n sweep (HV and HH) from the main log ----------
 lg = os.path.join(OUT, 'final_eq14_log.txt')
-if os.path.exists(lg):
-    L = open(lg).read().split('[T5]')[-1].splitlines(); ns, rs, ss_ = [], [], []
-    for ln in L:
+def _sweep(block):
+    ns, rs, sl = [], [], []
+    for ln in block.splitlines():
         mm = re.match(r'Eq14 n=([0-9.]+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)', ln)
-        if mm: ns.append(float(mm.group(1))); rs.append(float(mm.group(4))); ss_.append(float(mm.group(9)))
-    if ns:
-        fig, a = plt.subplots(figsize=(6.2, 3.8)); a2 = a.twinx()
-        a.plot(ns, rs, 'o-', color='#4c72b0', label='$r$ with AGB'); a2.plot(ns, ss_, 's--', color='#c44e52', label='residual slope')
-        a2.axhline(0, color='k', lw=0.6); a.set_xlabel('Exponent $n$'); a.set_ylabel('$r$', color='#4c72b0'); a2.set_ylabel('Residual slope (dB/°)', color='#c44e52')
-        h1, l1 = a.get_legend_handles_labels(); h2, l2 = a2.get_legend_handles_labels(); a.legend(h1 + h2, l1 + l2, loc='center right', frameon=False)
-        a.set_title('HH, window integration: dependence on $n$', loc='left'); save(fig, 'thesis_hh_n_sweep.png')
+        if mm: ns.append(float(mm.group(1))); rs.append(float(mm.group(4))); sl.append(float(mm.group(9)))
+    return ns, rs, sl
+if os.path.exists(lg):
+    txtl = open(lg).read(); series = []
+    if '[T5b]' in txtl: series.append(('HV', _sweep(txtl.split('[T5b]')[-1].split('[T5]')[0])))
+    if '[T5]' in txtl: series.append(('HH', _sweep(txtl.split('[T5]')[-1])))
+    series = [x for x in series if x[1][0]]
+    if series:
+        fig, axs = plt.subplots(1, 2, figsize=(10.5, 3.8))
+        for (pol, (ns, rs, sl)), c, mk in zip(series, ['#4c72b0', '#c44e52'], ['o', 's']):
+            axs[0].plot(ns, rs, mk + '-', color=c, label=pol); axs[1].plot(ns, sl, mk + '-', color=c, label=pol)
+            say('[n sweep] %s: ' % pol + ', '.join('n=%.2f r=%.3f slope=%+.4f' % t for t in zip(ns, rs, sl)))
+        axs[1].axhline(0, color='k', lw=0.6)
+        axs[0].set_xlabel('Exponent $n$'); axs[0].set_ylabel('$r$ with CCI AGB'); axs[0].set_title('(a) Correlation coefficient', loc='left'); axs[0].legend(frameon=False)
+        axs[1].set_xlabel('Exponent $n$'); axs[1].set_ylabel('Residual slope vs $\\theta_{loc}$ (dB/°)'); axs[1].set_title('(b) Residual angular dependence', loc='left'); axs[1].legend(frameon=False)
+        save(fig, 'thesis_n_sweep.png')
 
 # ---------- optional: geolocation correlation surface ----------
 if os.environ.get('RTC_GEOCHKFIG'):
