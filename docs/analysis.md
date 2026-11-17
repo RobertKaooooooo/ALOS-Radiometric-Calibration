@@ -138,3 +138,27 @@ azimuth offset is +4.17 lines; estimated separately in a 3 x 3 split of the
 image (`[GEOCHK3x3]`) it is +4.11 to +4.24 lines, constant in range. With the
 default calibration the offset is 0.00 lines overall and -0.06 to +0.08 lines
 in the nine blocks, and r at zero offset equals the maximum (0.670).
+
+
+## Three scenes (path 124, frame 880, ascending)
+
+Prepared with `analysis/prepare_scene.py` (recomputing 200,000 facets of the
+reference scene reproduces `facet_results_FINAL2.npz` exactly) and run with
+`RTC_SID=<scene> RTC_AZ_SHIFT=4.17 RTC_GEOID_SHIFT=-27.32`. Outputs are in
+`out_ellip_<scene>/`.
+
+| | ALPSRP237630880 | ALPSRP230920880 | ALPSRP183950880 |
+|---|---|---|---|
+| Date | 2010-07-11 | 2010-05-26 | 2009-07-08 |
+| Doppler centroid at 871 km | 125.9 Hz | 69.7 Hz | 122.3 Hz |
+| Line-time fit correction | -0.93 line | +0.80 line | -0.07 line |
+| Azimuth offset, no calibration | +4.17 | +4.04 | +4.45 |
+| Range offset | +0.04 px | -0.01 px | -0.20 px |
+| gamma0 n = 0.5, r / RMSE: uncorrected | 0.553 / 1.405 | 0.531 / 1.469 | 0.515 / 1.480 |
+| per-pixel RTC | 0.665 / 0.955 | 0.649 / 0.982 | 0.625 / 1.001 |
+| window integration | 0.706 / 0.817 | 0.688 / 0.849 | 0.667 / 0.864 |
+| window n = 1 minus ASF (10 km bootstrap) | +0.021 [+0.015, +0.026] | +0.017 [+0.011, +0.023] | +0.025 [+0.019, +0.032] |
+| CV-selected n | 0.5, 0.5 | 0.5, 0.5 | 0.5, 0.5 |
+
+CCI AGB 2010 is the reference for all three scenes. The range offset of
+ALPSRP183950880 (-0.20 px) is not explained.

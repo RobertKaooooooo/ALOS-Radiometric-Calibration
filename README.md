@@ -137,8 +137,14 @@ included.
   the Doppler range term and the geoid; its exact cause (about 1 Hz in the
   Doppler centroid, or a fixed offset in the line-time definition) cannot be
   separated with one scene. `analysis/final_eq14.py` applies it as an
-  empirical timing calibration (`RTC_AZ_SHIFT`, default 4.17; `RTC_AZ_SHIFT=0`
-  disables it); after it the residual is below 0.1 line in all nine blocks.
+  empirical timing calibration (`RTC_AZ_SHIFT`, default 4.17 for
+  ALPSRP237630880 only; `RTC_AZ_SHIFT=0` disables it); after it the residual
+  is below 0.1 line in all nine blocks. Two further scenes of the same track
+  (ALPSRP183950880, 2009-07-08; ALPSRP230920880, 2010-05-26) give +4.45 and
+  +4.04 lines although their Doppler centroids differ by up to 55 Hz and their
+  line-time rounding by up to 1.7 lines, so the offset is systematic
+  (mean +4.22, s.d. 0.21 line); the +4.17 of the first scene leaves +0.28 and
+  -0.13 line in the other two.
   The `alos_rtc` package itself applies no empirical offset. The range
   residual is 0.04 pixel after the geoid correction.
 - The UAVSAR antenna-pattern term (antcor) is not applied.
